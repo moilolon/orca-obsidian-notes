@@ -1,8 +1,41 @@
 # Obsidian Notes para Orca — Memoria del proyecto
 
 Plugin de Orca que muestra una bóveda de Obsidian en la barra lateral: un panel de componentes
-(`src/panel/`) y su worker de Node (`src/worker/`). Qué hace cada parte, cómo se instala y cómo
-se desarrolla está en `README.md`.
+(`src/panel/`) y su worker de Node (`src/worker/`).
+
+`README.md` es la portada, con el formato de todos los repos de moilolon: *Qué es*, *Cómo
+funciona*, *Puesta en marcha* y el pie común, sin árbol de carpetas, código largo ni roadmap. Lo
+de abajo es para Claude.
+
+## Estructura
+
+- `orca-plugin.json`: manifiesto (panel, worker, icono y portada; permisos `trusted-worker` y
+  `storage:own`).
+- `src/protocol.ts`: el contrato entre panel y worker. El panel no puede importar módulos de
+  Node: todo lo que lee del disco se lo pide al worker.
+- `src/panel/`: `panel.tsx` (barra, árbol, búsqueda, bóvedas y la nota), `panel.check.ts` (los
+  escenarios de `orca plugin check`), `markdown.ts` (front matter, avisos, `[[enlaces]]`,
+  títulos y sus colores, trozos de menos de 16 KiB) e `i18n.ts` (textos por idioma y códigos de
+  error del worker; un idioma nuevo es una tabla con todas las claves de la inglesa).
+- `src/worker/`: `worker.ts` (lee las bóvedas y contesta), `vault.ts` (rutas dentro de la
+  bóveda, orden, resolución de enlaces, la URL de Obsidian) y `folder-picker.ts` (PowerShell en
+  Windows, `osascript` en macOS, `zenity` en Linux).
+- Cada módulo tiene sus tests al lado (`*.test.ts`, `*.test.tsx`).
+- `assets/draw-images.ps1` dibuja `icon.png` y `cover.png` a partir de formas.
+
+## Desarrollo
+
+```bash
+npm install           # solo los tipos (TypeScript y @types/node)
+npm run typecheck     # tsc, sin generar nada
+npm test              # orca plugin test .
+npm run check         # orca plugin check: dibuja cada escenario de panel.check.ts
+orca plugin dev watch . --check --shot .orca/shots   # recarga al guardar y saca capturas
+powershell -NoProfile -File assets/draw-images.ps1   # vuelve a dibujar icono y portada
+```
+
+Los tests pueden pasar con el panel en blanco: cada cambio se comprueba con `orca plugin shot`
+o en el propio panel.
 
 ## Git
 
@@ -15,4 +48,4 @@ se desarrolla está en `README.md`.
 - **Pull requests:** título como un commit; cuerpo en español con «Qué cambia», «Por qué» y
   «Cómo comprobarlo». Se mergean por squash, con el título y el cuerpo del PR como commit.
 - **Tras un cambio de código**, el plugin instalado en Orca no se entera hasta reinstalarlo:
-  `README.md`, sección *Instalar*.
+  `README.md`, sección *Puesta en marcha*.
