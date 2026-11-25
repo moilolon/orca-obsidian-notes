@@ -50,6 +50,7 @@ orca plugin dev watch . --check --shot .orca/shots   # recarga al guardar y saca
 | `src/worker.ts` | Lee las bóvedas del disco y contesta al panel |
 | `src/vault.ts` | Reglas de rutas: dentro de la bóveda, claves, orden, resolución de `[[enlaces]]`, URL de Obsidian |
 | `src/protocol.ts` | El contrato entre panel y worker |
+| `assets/` | El icono y la portada del plugin, dibujados por `assets/draw-images.ps1` (PowerShell, sin capturas) |
 
 ## Licencia
 

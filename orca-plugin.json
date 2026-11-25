@@ -9,6 +9,11 @@
   "author": {
     "name": "moilolon"
   },
+  "icon": "assets/icon.png",
+  "cover": {
+    "path": "assets/cover.png",
+    "alt": "The plugin name beside a sidebar panel showing a note whose sections open on colored bands"
+  },
   "engines": {
     "orca": ">=1.4.246"
   },
