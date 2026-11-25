@@ -1,4 +1,5 @@
-# Draws the plugin's icon (256x256) and cover (1600x1000) into assets/, as PNG.
+﻿# Draws the plugin's icon (256x256), the README cover (1600x1000) and the GitHub social preview
+# (1280x640) into assets/, as PNG.
 # Run from the repository root: powershell -NoProfile -File assets/draw-images.ps1
 # Everything is drawn here from shapes: no screenshot, so no note content ends up in the images.
 Add-Type -AssemblyName System.Drawing
@@ -75,34 +76,54 @@ Draw-Note $g 52 40 152 176 1.15
 $bitmap.Save((Join-Path $assets 'icon.png'), [System.Drawing.Imaging.ImageFormat]::Png)
 $g.Dispose(); $bitmap.Dispose(); $gradient.Dispose(); $square.Dispose()
 
-# Cover: the name and what it does on the left, a panel with a note on the right.
-$canvas = New-Canvas 1600 1000
-$bitmap = $canvas[0]; $g = $canvas[1]
-$g.Clear($ground)
-$glow = New-Object System.Drawing.Drawing2D.LinearGradientBrush((New-Object System.Drawing.Point 0, 0), (New-Object System.Drawing.Point 1600, 1000), [System.Drawing.Color]::FromArgb(70, 124, 92, 220), [System.Drawing.Color]::FromArgb(0, 124, 92, 220))
-$g.FillRectangle($glow, 0, 0, 1600, 1000)
+# Cover: the name and what it does on the left, a panel with a note on the right. 1600 px wide
+# plus $extra on each side: the ground and the glow fill it all, the content stays in the middle.
+function Draw-Cover($g, [int]$extra) {
+  $width = 1600 + 2 * $extra
+  $g.Clear($ground)
+  $glow = New-Object System.Drawing.Drawing2D.LinearGradientBrush((New-Object System.Drawing.Point 0, 0), (New-Object System.Drawing.Point $width, 1000), [System.Drawing.Color]::FromArgb(70, 124, 92, 220), [System.Drawing.Color]::FromArgb(0, 124, 92, 220))
+  $g.FillRectangle($glow, 0, 0, $width, 1000)
+  $g.TranslateTransform($extra, 0)
 
-$iconBrush = New-Object System.Drawing.Drawing2D.LinearGradientBrush((New-Object System.Drawing.Point 120, 250), (New-Object System.Drawing.Point 240, 370), $purple, $violet)
-$iconPath = New-RoundedPath 120 250 120 120 26
-$g.FillPath($iconBrush, $iconPath)
-Draw-Note $g 145 266 70 88 0.55
+  $iconBrush = New-Object System.Drawing.Drawing2D.LinearGradientBrush((New-Object System.Drawing.Point 120, 250), (New-Object System.Drawing.Point 240, 370), $purple, $violet)
+  $iconPath = New-RoundedPath 120 250 120 120 26
+  $g.FillPath($iconBrush, $iconPath)
+  Draw-Note $g 145 266 70 88 0.55
 
-$white = New-Object System.Drawing.SolidBrush ([System.Drawing.Color]::FromArgb(255, 236, 239, 244))
-$muted = New-Object System.Drawing.SolidBrush ([System.Drawing.Color]::FromArgb(255, 160, 168, 182))
-$titleFont = New-Object System.Drawing.Font('Segoe UI Semibold', 64)
-$textFont = New-Object System.Drawing.Font('Segoe UI', 28)
-$g.DrawString('Obsidian Notes', $titleFont, $white, 112, 400)
-$g.DrawString("Your Obsidian vault in Orca's sidebar:", $textFont, $muted, 120, 520)
-$g.DrawString('folder tree, search, callouts and links,', $textFont, $muted, 120, 566)
-$g.DrawString('with the open note filling the panel.', $textFont, $muted, 120, 612)
+  $white = New-Object System.Drawing.SolidBrush ([System.Drawing.Color]::FromArgb(255, 236, 239, 244))
+  $muted = New-Object System.Drawing.SolidBrush ([System.Drawing.Color]::FromArgb(255, 160, 168, 182))
+  $titleFont = New-Object System.Drawing.Font('Segoe UI Semibold', 64)
+  $textFont = New-Object System.Drawing.Font('Segoe UI', 28)
+  $g.DrawString('Obsidian Notes', $titleFont, $white, 112, 400)
+  $g.DrawString("Your Obsidian vault in Orca's sidebar:", $textFont, $muted, 120, 520)
+  $g.DrawString('folder tree, search, callouts and links,', $textFont, $muted, 120, 566)
+  $g.DrawString('with the open note filling the panel.', $textFont, $muted, 120, 612)
 
-Fill-Rounded $g ([System.Drawing.Color]::FromArgb(255, 24, 27, 34)) 960 90 520 820 28
-for ($i = 0; $i -lt 5; $i++) {
-  Fill-Rounded $g $line (996 + $i * 52) 122 28 28 7
+  Fill-Rounded $g ([System.Drawing.Color]::FromArgb(255, 24, 27, 34)) 960 90 520 820 28
+  for ($i = 0; $i -lt 5; $i++) {
+    Fill-Rounded $g $line (996 + $i * 52) 122 28 28 7
+  }
+  Draw-Note $g 990 182 460 690 2.1
+
+  $g.ResetTransform()
+  $glow.Dispose(); $iconBrush.Dispose(); $iconPath.Dispose(); $white.Dispose(); $muted.Dispose(); $titleFont.Dispose(); $textFont.Dispose()
 }
-Draw-Note $g 990 182 460 690 2.1
 
-$g.Dispose(); $glow.Dispose(); $iconBrush.Dispose(); $iconPath.Dispose(); $white.Dispose(); $muted.Dispose(); $titleFont.Dispose(); $textFont.Dispose()
-$bitmap.Save((Join-Path $assets 'cover.png'), [System.Drawing.Imaging.ImageFormat]::Png)
-$bitmap.Dispose()
-Write-Output 'icon.png and cover.png written'
+$canvas = New-Canvas 1600 1000
+Draw-Cover $canvas[1] 0
+$canvas[1].Dispose()
+$canvas[0].Save((Join-Path $assets 'cover.png'), [System.Drawing.Imaging.ImageFormat]::Png)
+$canvas[0].Dispose()
+
+# GitHub's social preview (uploaded by hand in Settings) is 2:1: the cover widened to 2000x1000,
+# then scaled to 1280x640.
+$wide = New-Canvas 2000 1000
+Draw-Cover $wide[1] 200
+$wide[1].Dispose()
+$social = New-Canvas 1280 640
+$social[1].InterpolationMode = [System.Drawing.Drawing2D.InterpolationMode]::HighQualityBicubic
+$social[1].DrawImage($wide[0], 0, 0, 1280, 640)
+$social[1].Dispose(); $wide[0].Dispose()
+$social[0].Save((Join-Path $assets 'social-preview.png'), [System.Drawing.Imaging.ImageFormat]::Png)
+$social[0].Dispose()
+Write-Output 'icon.png, cover.png and social-preview.png written'

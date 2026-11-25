@@ -21,7 +21,8 @@ de abajo es para Claude.
   bóveda, orden, resolución de enlaces, la URL de Obsidian) y `folder-picker.ts` (PowerShell en
   Windows, `osascript` en macOS, `zenity` en Linux).
 - Cada módulo tiene sus tests al lado (`*.test.ts`, `*.test.tsx`).
-- `assets/draw-images.ps1` dibuja `icon.png` y `cover.png` a partir de formas.
+- `assets/draw-images.ps1` dibuja `icon.png` (el del plugin y el del proyecto en Orca), `cover.png`
+  y `social-preview.png` (la vista previa de GitHub, que se sube a mano en Settings) a partir de formas.
 
 ## Desarrollo
 
@@ -31,7 +32,7 @@ npm run typecheck     # tsc, sin generar nada
 npm test              # orca plugin test .
 npm run check         # orca plugin check: dibuja cada escenario de panel.check.ts
 orca plugin dev watch . --check --shot .orca/shots   # recarga al guardar y saca capturas
-powershell -NoProfile -File assets/draw-images.ps1   # vuelve a dibujar icono y portada
+powershell -NoProfile -File assets/draw-images.ps1   # vuelve a dibujar icono, portada y vista previa
 ```
 
 Los tests pueden pasar con el panel en blanco: cada cambio se comprueba con `orca plugin shot`

@@ -1,6 +1,8 @@
 <div align="center">
 
-# 📝 Obsidian Notes para Orca
+<img src="assets/icon.png" alt="" width="72">
+
+# Obsidian Notes para Orca
 
 **Tu bóveda de Obsidian en la barra lateral de Orca, con la nota abierta ocupando todo el panel**
 
