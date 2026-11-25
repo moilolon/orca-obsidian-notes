@@ -1,0 +1,34 @@
+{
+  "manifestVersion": 2,
+  "id": "obsidian-notes",
+  "name": "Obsidian Notes",
+  "version": "0.1.0",
+  "description": "Read the notes of an Obsidian vault in Orca's sidebar: folder tree, search, callouts and [[links]], with the open note filling the panel.",
+  "license": "MIT",
+  "repository": "https://github.com/moilolon/orca-obsidian-notes",
+  "author": {
+    "name": "moilolon"
+  },
+  "engines": {
+    "orca": ">=1.4.246"
+  },
+  "execution": "trusted-worker",
+  "pluginApi": 1,
+  "main": "src/worker.ts",
+  "contributes": {
+    "panels": [
+      {
+        "id": "obsidian-notes",
+        "title": "Notas",
+        "icon": "book",
+        "entry": "src/panel.tsx",
+        "ui": "components"
+      }
+    ]
+  },
+  "capabilities": [
+    {
+      "kind": "storage:own"
+    }
+  ]
+}
