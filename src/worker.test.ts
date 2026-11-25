@@ -21,7 +21,9 @@ test('adds a vault, lists its tree and reads a note', async () => {
   const root = makeVault()
   try {
     const worker = await mountWorker(main, { host: mockHost() })
-    assert.deepEqual(await worker.request('vaults.add', { path: root }), { vaults: [root] })
+    assert.deepEqual(await worker.request('vaults.add', { path: root }), { vaults: [root], added: root })
+    // Adding it again keeps one entry and answers the stored spelling.
+    assert.deepEqual(await worker.request('vaults.add', { path: root.toUpperCase() }), { vaults: [root], added: root })
 
     const { items, truncated } = await worker.request('notes.tree', { vault: root })
     assert.equal(truncated, false)
@@ -46,9 +48,10 @@ test('refuses a folder that is not an added vault, and a path that climbs out', 
   const root = makeVault()
   try {
     const worker = await mountWorker(main, { host: mockHost({ storage: { vaults: [join(root, 'Notas')] } }) })
-    await assert.rejects(() => worker.request('notes.tree', { vault: root }))
-    await assert.rejects(() => worker.request('notes.read', { vault: join(root, 'Notas'), path: '../Readme.md' }))
-    await assert.rejects(() => worker.request('vaults.add', { path: join(root, 'missing') }))
+    // Each refusal carries the code the panel translates (src/i18n.ts WORKER_ERRORS).
+    await assert.rejects(() => worker.request('notes.tree', { vault: root }), /not_a_vault/)
+    await assert.rejects(() => worker.request('notes.read', { vault: join(root, 'Notas'), path: '../Readme.md' }), /not_a_note/)
+    await assert.rejects(() => worker.request('vaults.add', { path: join(root, 'missing') }), /not_a_folder/)
     await worker.deactivate()
   } finally {
     rmSync(root, { recursive: true, force: true })

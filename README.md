@@ -5,7 +5,8 @@ Panel lateral de [Orca](https://github.com/stablyai/orca) para leer las notas de
 - **La nota ocupa todo el panel.** El árbol y la búsqueda se abren desde la barra de arriba y se esconden al abrir una nota.
 - **El visor es el Markdown de Orca:** listas anidadas, enlaces, tablas, código y casillas.
 - **Entiende Obsidian:** oculta el front matter YAML, dibuja los avisos (`> [!warning] …`) como avisos y lista los `[[enlaces]]` de la nota como botones para saltar a ellos.
-- **Varias bóvedas:** se añaden pegando la ruta de la carpeta y se cambia de una a otra con un desplegable.
+- **Varias bóvedas:** se añaden con el selector de carpetas del sistema (**Browse…**) o pegando la ruta, y se cambia de una a otra con un desplegable.
+- **En el idioma de Orca:** inglés, o español cuando Orca está en español (`src/i18n.ts`; otro idioma es otra tabla allí).
 - **Abrir en Obsidian:** abre la nota con `obsidian://open?path=…`, así que funciona también si la carpeta añadida es una subcarpeta de la bóveda.
 - **Solo lectura.** El plugin no escribe nada en las bóvedas; solo guarda la lista de bóvedas en su propio almacenamiento.
 
@@ -24,7 +25,9 @@ Orca enseña los permisos que pide y un comando con `--approve <huella>` para ap
 - **trusted-worker:** el worker (`src/worker.ts`) corre en un proceso de Node con los permisos de tu usuario, porque tiene que leer las carpetas de notas.
 - **storage:own:** guarda la lista de bóvedas.
 
-Después, abre el panel **Notas** en la barra lateral derecha de Orca, pulsa el botón de ajustes y pega la ruta de la bóveda.
+Después, abre el panel **Obsidian** en la barra lateral derecha de Orca, pulsa el botón de ajustes y elige la carpeta de la bóveda con **Browse…** (o pega su ruta).
+
+El selector de carpetas es el del sistema, abierto por el worker: PowerShell en Windows, `osascript` en macOS y `zenity` en Linux. Donde no está, se pega la ruta.
 
 ## Desarrollo
 
@@ -41,6 +44,8 @@ orca plugin dev watch . --check --shot .orca/shots   # recarga al guardar y saca
 | Fichero | Qué hace |
 | ------- | -------- |
 | `src/panel.tsx` | El panel: barra, árbol, búsqueda, bóvedas y la nota |
+| `src/i18n.ts` | Los textos del panel en cada idioma y los códigos de error del worker |
+| `src/folder-picker.ts` | El selector de carpetas del sistema |
 | `src/markdown.ts` | Convierte una nota de Obsidian en lo que dibuja el Markdown de Orca (front matter, avisos, `[[enlaces]]`, trozos de menos de 16 KiB) |
 | `src/worker.ts` | Lee las bóvedas del disco y contesta al panel |
 | `src/vault.ts` | Reglas de rutas: dentro de la bóveda, claves, orden, resolución de `[[enlaces]]`, URL de Obsidian |

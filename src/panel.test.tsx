@@ -12,7 +12,8 @@ function host(vaults: string[] = [VAULT]) {
   return mockHost({
     requests: {
       'vaults.list': () => ({ vaults }),
-      'vaults.add': ({ path }) => ({ vaults: [...vaults, path] }),
+      'vaults.add': ({ path }) => ({ vaults: [...vaults, path], added: path }),
+      'vaults.pick': () => ({ vaults: [...vaults, 'C:\\picked'], added: 'C:\\picked' }),
       'notes.tree': () => ({
         truncated: false,
         items: [{ key: 'Notas', label: 'Notas', icon: 'folder', children: [{ key: 'Notas/Release.md', label: 'Release' }, { key: 'Notas/TODO.md', label: 'TODO' }] }]
@@ -25,20 +26,38 @@ function host(vaults: string[] = [VAULT]) {
   })
 }
 
-test('asks for a vault when none is added', async () => {
-  const view = await mount(panel, { host: host([]) })
+test('asks for a vault in English when none is added', async () => {
+  const view = await mount(panel, { host: host([]), locale: 'en-US' })
+  const summary = view.summary().join(' | ')
+  assert.ok(summary.includes('Add a vault'), summary)
+  assert.ok(view.find({ text: 'Browse…' }))
+  assert.deepEqual(view.errors, [])
+  await view.unmount()
+})
+
+test('speaks Spanish when Orca does', async () => {
+  const view = await mount(panel, { host: host([]), locale: 'es-ES' })
   const summary = view.summary().join(' | ')
   assert.ok(summary.includes('Añade una bóveda'), summary)
+  assert.ok(view.find({ text: 'Examinar…' }))
+  await view.unmount()
+})
+
+test('adds the folder picked in the system dialog and shows its notes', async () => {
+  const testHost = host([])
+  const view = await mount(panel, { host: testHost, locale: 'en' })
+  await view.press({ text: 'Browse…' })
+  assert.ok(view.find({ label: 'Notes tree' }), view.summary().join(' | '))
   assert.deepEqual(view.errors, [])
   await view.unmount()
 })
 
 test('opens a note from the tree over the whole panel, with its callout and links', async () => {
-  const view = await mount(panel, { host: host() })
-  await view.selectItem({ label: 'Árbol de notas' }, 'Notas/TODO.md')
+  const view = await mount(panel, { host: host(), locale: 'en' })
+  await view.selectItem({ label: 'Notes tree' }, 'Notas/TODO.md')
   const summary = view.summary().join(' | ')
   assert.ok(summary.includes('Careful'), summary)
-  assert.equal(view.find({ label: 'Árbol de notas' }), null)
+  assert.equal(view.find({ label: 'Notes tree' }), null)
   await view.press({ text: 'Release' })
   assert.ok(view.find({ text: 'Notas/Release.md' }))
   assert.deepEqual(view.errors, [])

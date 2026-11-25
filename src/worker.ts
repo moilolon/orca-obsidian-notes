@@ -5,6 +5,7 @@ import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import type { TreeItem } from 'orca'
 import type { OrcaWorkerApi } from 'orca/worker'
+import { pickFolder } from './folder-picker'
 import type { NoteFile } from './protocol'
 import { compareEntries, isInside, isNote, noteTitle, obsidianUrl, resolveWikilink, SKIPPED_FOLDERS, toKey } from './vault'
 
@@ -13,8 +14,9 @@ const MAX_NOTE_BYTES = 1024 * 1024
 const MAX_TREE_ENTRIES = 4000
 const MAX_SEARCH_RESULTS = 50
 
-function invalid(message: string): Error {
-  return Object.assign(new Error(message), { code: 'invalid_params' })
+/** The message is a code the panel words in the person's language (src/i18n.ts). */
+function invalid(code: string): Error {
+  return Object.assign(new Error(code), { code: 'invalid_params' })
 }
 
 async function storedVaults(orca: OrcaWorkerApi): Promise<string[]> {
@@ -26,13 +28,13 @@ async function storedVaults(orca: OrcaWorkerApi): Promise<string[]> {
 async function knownVault(orca: OrcaWorkerApi, vault: string): Promise<string> {
   const root = resolve(vault)
   const vaults = await storedVaults(orca)
-  if (!vaults.some((v) => resolve(v).toLowerCase() === root.toLowerCase())) throw invalid('not an added vault')
+  if (!vaults.some((v) => resolve(v).toLowerCase() === root.toLowerCase())) throw invalid('not_a_vault')
   return root
 }
 
 function noteInVault(root: string, path: string): string {
   const file = resolve(root, path)
-  if (!isInside(root, file) || !isNote(file)) throw invalid('not a note in this vault')
+  if (!isInside(root, file) || !isNote(file)) throw invalid('not_a_note')
   return file
 }
 
@@ -75,7 +77,7 @@ function listVault(root: string): Walked {
 }
 
 function readNote(file: string): string {
-  if (statSync(file).size > MAX_NOTE_BYTES) throw invalid('note larger than 1 MiB')
+  if (statSync(file).size > MAX_NOTE_BYTES) throw invalid('note_too_large')
   return readFileSync(file, 'utf8')
 }
 
@@ -105,13 +107,22 @@ function openUrl(url: string): void {
 export default function activate(orca: OrcaWorkerApi): void {
   orca.panels.handle('vaults.list', async () => ({ vaults: await storedVaults(orca) }))
 
-  orca.panels.handle('vaults.add', async ({ path }) => {
+  /** Stores a folder as a vault, once; answers the list and the folder as it was stored. */
+  async function addVault(path: string): Promise<{ vaults: string[]; added: string }> {
     const folder = resolve(path.trim().replace(/^"|"$/g, ''))
-    if (!existsSync(folder) || !statSync(folder).isDirectory()) throw invalid('not a folder')
+    if (!existsSync(folder) || !statSync(folder).isDirectory()) throw invalid('not_a_folder')
     const vaults = await storedVaults(orca)
-    if (!vaults.some((v) => resolve(v).toLowerCase() === folder.toLowerCase())) vaults.push(folder)
+    const known = vaults.find((v) => resolve(v).toLowerCase() === folder.toLowerCase())
+    if (!known) vaults.push(folder)
     await orca.storage.set(VAULTS_KEY, vaults)
-    return { vaults }
+    return { vaults, added: known || folder }
+  }
+
+  orca.panels.handle('vaults.add', async ({ path }) => addVault(path))
+
+  orca.panels.handle('vaults.pick', async () => {
+    const picked = await pickFolder()
+    return picked ? addVault(picked) : { vaults: await storedVaults(orca), added: null }
   })
 
   orca.panels.handle('vaults.remove', async ({ path }) => {

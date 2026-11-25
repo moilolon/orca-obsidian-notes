@@ -1,5 +1,5 @@
 import { assert, test } from 'orca/testing'
-import { chunkMarkdown, noteSegments, replaceWikilinks, stripFrontMatter, wikilinkTargets } from './markdown'
+import { chunkMarkdown, noteSegments, replaceWikilinks, sectionTones, stripFrontMatter, wikilinkTargets } from './markdown'
 
 test('drops the YAML front matter and keeps the body', () => {
   assert.equal(stripFrontMatter('---\ntags:\n  - todo\n---\n# TODO\n'), '# TODO\n')
@@ -31,6 +31,17 @@ test('names an untitled callout after its type and maps unknown types to neutral
   assert.equal(other.kind === 'callout' && other.tone, 'neutral')
 })
 
+test('makes each heading its own segment, levels past 4 drawn as 4, inline marks dropped', () => {
+  const segments = noteSegments('# TODO\n\n## Tickets **en** curso\nText\n###### Deep `code`\n```\n# not a heading\n```')
+  assert.deepEqual(segments, [
+    { kind: 'heading', level: 1, text: 'TODO', markdown: '# TODO' },
+    { kind: 'heading', level: 2, text: 'Tickets en curso', markdown: '## Tickets **en** curso' },
+    { kind: 'markdown', text: 'Text' },
+    { kind: 'heading', level: 4, text: 'Deep code', markdown: '#### Deep `code`' },
+    { kind: 'markdown', text: '```\n# not a heading\n```' }
+  ])
+})
+
 test('leaves a callout-looking line inside a code fence alone', () => {
   const segments = noteSegments('```\n> [!warning] not a callout\n```')
   assert.equal(segments.length, 1)
@@ -44,4 +55,13 @@ test('splits long Markdown at blank lines, never inside a code fence', () => {
   assert.ok(chunks.length > 1)
   assert.equal(chunks.join('\n').replace(/\n+/g, '\n'), text.replace(/\n+/g, '\n'))
   assert.ok(chunks.some((chunk) => chunk.includes('```\n' + paragraph + '\n\n' + paragraph + '\n```')))
+})
+
+test('gives each section the next color and its subsections the same one', () => {
+  const segments = noteSegments('# Title\nIntro\n## One\n### One.a\nText\n## Two\n## Three\n## Four\n## Five')
+  const headings = segments
+    .map((segment, index) => ({ segment, tone: sectionTones(segments)[index] }))
+    .filter(({ segment }) => segment.kind === 'heading')
+    .map(({ segment, tone }) => `${segment.kind === 'heading' ? segment.text : ''}:${tone}`)
+  assert.deepEqual(headings, ['Title:accent', 'One:accent', 'One.a:accent', 'Two:success', 'Three:warning', 'Four:danger', 'Five:accent'])
 })

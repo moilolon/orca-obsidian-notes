@@ -3,8 +3,11 @@
 
 export type CalloutTone = 'neutral' | 'accent' | 'success' | 'warning' | 'danger'
 
+export type HeadingLevel = 1 | 2 | 3 | 4
+
 export type Segment =
   | { kind: 'markdown'; text: string }
+  | { kind: 'heading'; level: HeadingLevel; text: string; markdown: string }
   | { kind: 'callout'; tone: CalloutTone; title: string; text: string }
 
 /** Orca refuses a text over 16 KiB; accented text takes two bytes per letter, so stay well under. */
@@ -15,6 +18,9 @@ const WIKILINK = /(!?)\[\[([^\]|#]+)(#[^\]|]*)?(?:\|([^\]]+))?\]\]/g
 const CALLOUT_START = /^>\s*\[!([A-Za-z-]+)\][+-]?\s*(.*)$/
 const QUOTE_LINE = /^>\s?/
 const FENCE = /^\s*(```|~~~)/
+const HEADING = /^(#{1,6})\s+(.*?)\s*#*\s*$/
+/** Inline Markdown a plain-text heading cannot show: emphasis, code and link brackets. */
+const INLINE_MARKS = /\*\*|__|\*|`|\[|\]\([^)]*\)|\]/g
 
 const CALLOUT_TONES: Record<string, CalloutTone> = {
   note: 'accent',
@@ -93,7 +99,37 @@ export function chunkMarkdown(text: string, maxChars: number = MAX_CHUNK_CHARS):
   return chunks
 }
 
-/** The note body as Markdown pieces and Obsidian callouts, in order. */
+export type SectionTone = 'accent' | 'success' | 'warning' | 'danger'
+
+/** The colors `##` sections take in turn, so neighbouring sections never share one. */
+export const SECTION_TONES: readonly SectionTone[] = ['accent', 'success', 'warning', 'danger']
+
+/**
+ * The color of the section each segment belongs to: every `##` heading starts the next color,
+ * and what comes before the first one reads as the first color.
+ */
+export function sectionTones(segments: readonly Segment[]): SectionTone[] {
+  let section = -1
+  return segments.map((segment) => {
+    if (segment.kind === 'heading' && segment.level === 2) section++
+    return SECTION_TONES[Math.max(section, 0) % SECTION_TONES.length]
+  })
+}
+
+/** A Markdown heading as plain text, its inline marks dropped. */
+export function headingText(raw: string): string {
+  return raw.replace(INLINE_MARKS, '').trim()
+}
+
+/** `#` to `###` keep their level; `####` and deeper are level 4: Orca text has no smaller step. */
+function headingLevel(hashes: string): HeadingLevel {
+  return Math.min(hashes.length, 4) as HeadingLevel
+}
+
+/**
+ * The note body as Markdown pieces, headings and Obsidian callouts, in order. Headings are
+ * their own segments so the panel can draw them with Orca's heading and space the sections.
+ */
 export function noteSegments(text: string): Segment[] {
   const body = replaceWikilinks(stripFrontMatter(text))
   const segments: Segment[] = []
@@ -107,6 +143,13 @@ export function noteSegments(text: string): Segment[] {
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i]
     if (FENCE.test(line)) inFence = !inFence
+    const heading = inFence ? null : HEADING.exec(line)
+    if (heading) {
+      flushMarkdown()
+      const level = headingLevel(heading[1])
+      segments.push({ kind: 'heading', level, text: headingText(heading[2]), markdown: `${'#'.repeat(level)} ${heading[2]}` })
+      continue
+    }
     const start = inFence ? null : CALLOUT_START.exec(line)
     if (!start) {
       pending.push(line)

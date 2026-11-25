@@ -19,7 +19,7 @@
     "panels": [
       {
         "id": "notes",
-        "title": "Notas",
+        "title": "Obsidian",
         "icon": "book",
         "entry": "src/panel.tsx",
         "ui": "components"
