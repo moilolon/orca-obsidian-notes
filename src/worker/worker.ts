@@ -6,7 +6,7 @@ import { join, resolve } from 'node:path'
 import type { TreeItem } from 'orca'
 import type { OrcaWorkerApi } from 'orca/worker'
 import { pickFolder } from './folder-picker'
-import type { NoteFile } from './protocol'
+import type { NoteFile } from '../protocol'
 import { compareEntries, isInside, isNote, noteTitle, obsidianUrl, resolveWikilink, SKIPPED_FOLDERS, toKey } from './vault'
 
 const VAULTS_KEY = 'vaults'
@@ -14,7 +14,7 @@ const MAX_NOTE_BYTES = 1024 * 1024
 const MAX_TREE_ENTRIES = 4000
 const MAX_SEARCH_RESULTS = 50
 
-/** The message is a code the panel words in the person's language (src/i18n.ts). */
+/** The message is a code the panel words in the person's language (src/panel/i18n.ts). */
 function invalid(code: string): Error {
   return Object.assign(new Error(code), { code: 'invalid_params' })
 }

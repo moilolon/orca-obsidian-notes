@@ -1,4 +1,4 @@
-// Runs src/worker.ts's activate(orca) over a mock host and a real temporary vault on disk.
+// Runs src/worker/worker.ts's activate(orca) over a mock host and a real temporary vault on disk.
 import { assert, mockHost, mountWorker, test } from 'orca/testing'
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -48,7 +48,7 @@ test('refuses a folder that is not an added vault, and a path that climbs out', 
   const root = makeVault()
   try {
     const worker = await mountWorker(main, { host: mockHost({ storage: { vaults: [join(root, 'Notas')] } }) })
-    // Each refusal carries the code the panel translates (src/i18n.ts WORKER_ERRORS).
+    // Each refusal carries the code the panel translates (src/panel/i18n.ts WORKER_ERRORS).
     await assert.rejects(() => worker.request('notes.tree', { vault: root }), /not_a_vault/)
     await assert.rejects(() => worker.request('notes.read', { vault: join(root, 'Notas'), path: '../Readme.md' }), /not_a_note/)
     await assert.rejects(() => worker.request('vaults.add', { path: join(root, 'missing') }), /not_a_folder/)

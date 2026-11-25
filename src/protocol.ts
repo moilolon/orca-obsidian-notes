@@ -1,4 +1,4 @@
-// The panel <-> worker contract, declared once: src/panel.tsx and src/worker.ts both read it.
+// The panel <-> worker contract, declared once: src/panel/panel.tsx and src/worker/worker.ts both read it.
 import type { TreeItem } from 'orca'
 
 export type NoteFile = { path: string; name: string }

@@ -19,14 +19,14 @@
   },
   "execution": "trusted-worker",
   "pluginApi": 1,
-  "main": "src/worker.ts",
+  "main": "src/worker/worker.ts",
   "contributes": {
     "panels": [
       {
         "id": "notes",
         "title": "Obsidian",
         "icon": "book",
-        "entry": "src/panel.tsx",
+        "entry": "src/panel/panel.tsx",
         "ui": "components"
       }
     ]

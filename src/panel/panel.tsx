@@ -1,6 +1,6 @@
 // The sidebar panel: a toolbar, then either the notes tree, the search, the vault list or the
 // open note, which takes the whole panel. Orca strips the types and compiles the JSX on load.
-// Every text comes from src/i18n.ts, in Orca's language.
+// Every text comes from src/panel/i18n.ts, in Orca's language.
 import {
   atom,
   Box,
@@ -31,7 +31,7 @@ import {
 } from 'orca'
 import { format, messagesFor, WORKER_ERRORS, type MessageKey } from './i18n'
 import { noteSegments, sectionTones, wikilinkTargets, type SectionTone, type Segment } from './markdown'
-import type { NoteFile } from './protocol'
+import type { NoteFile } from '../protocol'
 
 type View = 'notes' | 'search' | 'vaults' | 'reading'
 type OpenNote = { path: string; title: string; segments: Segment[]; links: string[] }
