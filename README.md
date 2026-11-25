@@ -1,129 +1,128 @@
 <div align="center">
 
-# 📝 Obsidian Notes for Orca
+# 📝 Obsidian Notes para Orca
 
-**Your Obsidian vault in Orca's sidebar, with the open note filling the panel**
+**Tu bóveda de Obsidian en la barra lateral de Orca, con la nota abierta ocupando todo el panel**
 
-[![Orca plugin](https://img.shields.io/badge/Orca-plugin-7C5CDC?style=for-the-badge)](https://github.com/stablyai/orca)
-[![No build](https://img.shields.io/badge/TypeScript-no%20build-3178C6?style=for-the-badge&logo=typescript&logoColor=white)](#-development)
-[![Obsidian](https://img.shields.io/badge/Reads-Obsidian%20vaults-7C3AED?style=for-the-badge&logo=obsidian&logoColor=white)](https://obsidian.md/)
-[![Read only](https://img.shields.io/badge/Vaults-read%20only-2EA043?style=for-the-badge)](#-what-it-touches)
+[![Plugin de Orca](https://img.shields.io/badge/Orca-plugin-7C5CDC?style=for-the-badge)](https://github.com/stablyai/orca)
+[![Sin compilación](https://img.shields.io/badge/TypeScript-sin%20compilaci%C3%B3n-3178C6?style=for-the-badge&logo=typescript&logoColor=white)](#-desarrollo)
+[![Obsidian](https://img.shields.io/badge/Lee-bóvedas%20de%20Obsidian-7C3AED?style=for-the-badge&logo=obsidian&logoColor=white)](https://obsidian.md/)
+[![Solo lectura](https://img.shields.io/badge/Bóvedas-solo%20lectura-2EA043?style=for-the-badge)](#-qué-toca)
 
-<img src="assets/cover.png" alt="The plugin name beside a sidebar panel showing a note whose sections open on colored bands" width="820">
+<img src="assets/cover.png" alt="El nombre del plugin junto a un panel lateral con una nota cuyas secciones abren con bandas de color" width="820">
 
-[Features](#-features) ·
-[Install](#-install) ·
-[What it touches](#-what-it-touches) ·
-[Structure](#-structure) ·
-[Development](#-development)
+[Funciones](#-funciones) ·
+[Instalar](#-instalar) ·
+[Qué toca](#-qué-toca) ·
+[Estructura](#-estructura) ·
+[Desarrollo](#-desarrollo)
 
 </div>
 
 ---
 
-## ✨ Features
+## ✨ Funciones
 
-| | Feature | What it does |
+| | Función | Qué hace |
 |---|---|---|
-| 📖 | **Full-panel reading** | The open note takes the whole panel; the tree and the search open from the toolbar and step aside when you open a note |
-| 🧾 | **Orca's own Markdown** | Nested lists, links, tables, code and checkboxes, drawn by Orca's Markdown component |
-| 🪨 | **Speaks Obsidian** | Hides the YAML front matter, draws callouts (`> [!warning] …`) as callouts, and lists the note's `[[links]]` as buttons that open them |
-| 🎨 | **Sections that stand apart** | Each `##` opens on a band of its own color with room above; `###` and `####` take their section's color, each level smaller |
-| 🗂️ | **Several vaults** | Added through the system folder dialog (**Browse…**) or by pasting a path, and switched with a drop-down |
-| 🔎 | **Search** | Finds notes by name and by text |
-| ↗️ | **Open in Obsidian** | Opens the note through `obsidian://open?path=…`, so it works even when the added folder is a subfolder of the vault |
-| 🌍 | **In Orca's language** | English, or Spanish when Orca is in Spanish |
+| 📖 | **Lectura a panel completo** | La nota abierta ocupa todo el panel; el árbol y la búsqueda se abren desde la barra y se apartan al abrir una nota |
+| 🧾 | **El Markdown de Orca** | Listas anidadas, enlaces, tablas, código y casillas, dibujados por el componente Markdown de Orca |
+| 🪨 | **Entiende Obsidian** | Oculta el front matter YAML, dibuja los avisos (`> [!warning] …`) como avisos y lista los `[[enlaces]]` de la nota como botones que los abren |
+| 🎨 | **Secciones que se distinguen** | Cada `##` abre con una banda de su propio color y espacio encima; los `###` y `####` van en el color de su sección, cada nivel más pequeño |
+| 🗂️ | **Varias bóvedas** | Se añaden con el selector de carpetas del sistema (**Browse…**) o pegando la ruta, y se cambia de una a otra con un desplegable |
+| 🔎 | **Búsqueda** | Encuentra notas por nombre y por contenido |
+| ↗️ | **Abrir en Obsidian** | Abre la nota con `obsidian://open?path=…`, así que funciona aunque la carpeta añadida sea una subcarpeta de la bóveda |
+| 🌍 | **En el idioma de Orca** | Inglés, o español cuando Orca está en español |
 
-Based on the idea of [Obsidian for Orca](https://github.com/vrwolf1004/orca-obsidian) by
-vrwolf1004 (MIT), rewritten as a panel of Orca's native components.
+Basado en la idea de [Obsidian for Orca](https://github.com/vrwolf1004/orca-obsidian) de
+vrwolf1004 (MIT), reescrito como panel de componentes nativos de Orca.
 
 ---
 
-## 🚀 Install
+## 🚀 Instalar
 
-From the repository folder:
+Desde la carpeta del repositorio:
 
 ```bash
 orca plugin install .
 ```
 
-Orca shows the access the plugin asks for and a command with `--approve <fingerprint>` to
-grant it. Then open the **Obsidian** panel in Orca's right sidebar, press the settings
-button and pick the vault folder with **Browse…**, or paste its path.
+Orca enseña los permisos que pide el plugin y un comando con `--approve <huella>` para
+concederlos. Después, abre el panel **Obsidian** en la barra lateral derecha de Orca, pulsa
+el botón de ajustes y elige la carpeta de la bóveda con **Browse…**, o pega su ruta.
 
 > [!TIP]
-> Orca installs a fixed copy of the folder, so a code change reaches it only after
-> `orca plugin install .` again. Move `node_modules` (development typings only) out of the
-> folder first, or the copy carries it. When the access does not change, Orca keeps the
-> approval.
+> Orca instala una copia fija de la carpeta, así que un cambio en el código solo llega al
+> volver a ejecutar `orca plugin install .`. Saca antes `node_modules` de la carpeta (solo
+> trae los tipos de desarrollo) o la copia lo arrastra. Si los permisos no cambian, Orca
+> conserva la aprobación.
 
 ---
 
-## 🔐 What it touches
+## 🔐 Qué toca
 
-| Grant | Why |
+| Permiso | Para qué |
 |---|---|
-| **trusted-worker** | The worker (`src/worker/worker.ts`) runs in a Node process with your user's access, because it reads the note folders |
-| **storage:own** | Keeps the list of vaults |
+| **trusted-worker** | El worker (`src/worker/worker.ts`) corre en un proceso de Node con los permisos de tu usuario, porque lee las carpetas de notas |
+| **storage:own** | Guarda la lista de bóvedas |
 
-- **Read only.** It never writes to a vault; the only thing it stores is the vault list.
-- **Only the vaults you add.** The worker refuses any folder that is not on the list, and
-  any path that climbs out of one.
-- **The folder dialog** is the system's, opened by the worker: PowerShell on Windows,
-  `osascript` on macOS and `zenity` on Linux. Where it is missing, paste the path.
-- **Nothing leaves the machine.** No network calls.
+- **Solo lectura.** Nunca escribe en una bóveda; lo único que guarda es la lista de bóvedas.
+- **Solo las bóvedas añadidas.** El worker rechaza cualquier carpeta que no esté en la
+  lista y cualquier ruta que se salga de una.
+- **El selector de carpetas** es el del sistema, abierto por el worker: PowerShell en
+  Windows, `osascript` en macOS y `zenity` en Linux. Donde no está, se pega la ruta.
+- **Nada sale del equipo.** No hace llamadas de red.
 
 ---
 
-## 📁 Structure
+## 📁 Estructura
 
 ```text
 orca-obsidian-notes/
-├── 🧩 orca-plugin.json        Manifest: the panel and the worker, the icon and the cover
+├── 🧩 orca-plugin.json        Manifiesto: el panel y el worker, el icono y la portada
 ├── 📜 src/
-│   ├── 🤝 protocol.ts         The contract between panel and worker
-│   ├── 🪟 panel/              Runs in Orca's panel, with no access to Node
-│   │   ├── panel.tsx          The panel: toolbar, tree, search, vaults and the note
-│   │   ├── panel.check.ts     The scenarios `orca plugin check` draws
-│   │   ├── markdown.ts        An Obsidian note as Orca's Markdown: front matter, callouts,
-│   │   │                      [[links]], headings and their colors, chunks under 16 KiB
-│   │   └── i18n.ts            The panel's texts per language, and the worker's error codes
-│   └── ⚙️ worker/             Runs in Node: the only part that touches the disk
-│       ├── worker.ts          Reads the vaults and answers the panel
-│       ├── vault.ts           Path rules: inside the vault, keys, order, [[link]] lookup,
-│       │                      the Obsidian URL
-│       └── folder-picker.ts   The system folder dialog
+│   ├── 🤝 protocol.ts         El contrato entre panel y worker
+│   ├── 🪟 panel/              Corre en el panel de Orca, sin acceso a Node
+│   │   ├── panel.tsx          El panel: barra, árbol, búsqueda, bóvedas y la nota
+│   │   ├── panel.check.ts     Los escenarios que dibuja `orca plugin check`
+│   │   ├── markdown.ts        Una nota de Obsidian como Markdown de Orca: front matter,
+│   │   │                      avisos, [[enlaces]], títulos y sus colores, trozos de menos de 16 KiB
+│   │   └── i18n.ts            Los textos del panel en cada idioma y los códigos de error del worker
+│   └── ⚙️ worker/             Corre en Node: lo único que toca el disco
+│       ├── worker.ts          Lee las bóvedas y contesta al panel
+│       ├── vault.ts           Reglas de rutas: dentro de la bóveda, claves, orden,
+│       │                      resolución de [[enlaces]], la URL de Obsidian
+│       └── folder-picker.ts   El selector de carpetas del sistema
 └── 🖼️ assets/
     ├── icon.png, cover.png
-    └── draw-images.ps1        Draws both from shapes, with no screenshot
+    └── draw-images.ps1        Dibuja los dos a partir de formas, sin capturas
 ```
 
-Each module has its tests next to it (`*.test.ts`, `*.test.tsx`). The panel cannot import
-Node modules: everything it reads from disk it asks the worker for, through
-`src/protocol.ts`.
+Cada módulo tiene sus tests al lado (`*.test.ts`, `*.test.tsx`). El panel no puede importar
+módulos de Node: todo lo que lee del disco se lo pide al worker por `src/protocol.ts`.
 
 ---
 
-## 🛠 Development
+## 🛠 Desarrollo
 
-There is no build step: Orca loads the `.ts` and `.tsx` files as they are.
+No hay paso de compilación: Orca carga los `.ts` y `.tsx` tal cual.
 
 ```bash
-npm install           # typings only (TypeScript and @types/node)
-npm run typecheck     # tsc, no output
+npm install           # solo los tipos (TypeScript y @types/node)
+npm run typecheck     # tsc, sin generar nada
 npm test              # orca plugin test .
-npm run check         # orca plugin check: draws each scenario of src/panel/panel.check.ts
-orca plugin dev watch . --check --shot .orca/shots   # reloads on save and takes screenshots
+npm run check         # orca plugin check: dibuja cada escenario de src/panel/panel.check.ts
+orca plugin dev watch . --check --shot .orca/shots   # recarga al guardar y saca capturas
 ```
 
 > [!IMPORTANT]
-> The tests can pass while the panel does not draw in Orca: check each change with
-> `orca plugin shot` or in the panel itself.
+> Los tests pueden pasar aunque el panel no se dibuje en Orca: comprueba cada cambio con
+> `orca plugin shot` o en el propio panel.
 
-To redraw the icon and the cover:
+Para volver a dibujar el icono y la portada:
 
 ```bash
 powershell -NoProfile -File assets/draw-images.ps1
 ```
 
-Adding a language is one more table in `src/panel/i18n.ts`, with every key of the English one.
+Añadir un idioma es una tabla más en `src/panel/i18n.ts`, con todas las claves de la inglesa.
