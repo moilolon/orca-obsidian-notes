@@ -127,9 +127,3 @@ powershell -NoProfile -File assets/draw-images.ps1
 ```
 
 Adding a language is one more table in `src/panel/i18n.ts`, with every key of the English one.
-
----
-
-## 📄 License
-
-MIT. See [LICENSE](LICENSE).
