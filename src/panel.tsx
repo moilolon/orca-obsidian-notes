@@ -8,6 +8,7 @@ import {
   Callout,
   Card,
   EmptyState,
+  Heading,
   env,
   IconButton,
   Input,
@@ -269,10 +270,11 @@ function HeadingView(segment: Extract<Segment, { kind: 'heading' }>, tone: Secti
     )
   }
   // A `##` section opens on a band of its own color, with clear room after the section before.
+  // Orca's Heading carries no margins of its own, so the band centers the title evenly.
   return (
     <Box paddingY="lg">
-      <Box background={tone} border={tone} radius="md" paddingX="sm" paddingY="xs">
-        <Markdown content={segment.markdown} />
+      <Box background={tone} border={tone} radius="md" paddingX="sm" paddingY="sm" direction="row" align="center">
+        <Heading level={1}>{segment.text}</Heading>
       </Box>
     </Box>
   )
