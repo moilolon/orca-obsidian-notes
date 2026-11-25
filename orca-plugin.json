@@ -1,6 +1,6 @@
 {
   "manifestVersion": 2,
-  "id": "obsidian-notes",
+  "id": "notes",
   "name": "Obsidian Notes",
   "version": "0.1.0",
   "description": "Read the notes of an Obsidian vault in Orca's sidebar: folder tree, search, callouts and [[links]], with the open note filling the panel.",
@@ -18,7 +18,7 @@
   "contributes": {
     "panels": [
       {
-        "id": "obsidian-notes",
+        "id": "notes",
         "title": "Notas",
         "icon": "book",
         "entry": "src/panel.tsx",
