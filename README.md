@@ -1,6 +1,6 @@
 <div align="center">
 
-# <img src="assets/icon.png" alt="" width="40" align="center"> Obsidian Notes para Orca
+# <img src="assets/icon.png" alt="" width="40" align="absmiddle"> Obsidian Notes para Orca
 
 **Tu bóveda de Obsidian en la barra lateral de Orca, con la nota abierta ocupando todo el panel**
 
