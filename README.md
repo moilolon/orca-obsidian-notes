@@ -20,10 +20,13 @@
 |---|---|---|
 | 📖 | **Lectura a panel completo** | La nota abierta ocupa todo el panel; el árbol y la búsqueda se abren desde la barra |
 | 🧾 | **El Markdown de Orca** | Listas anidadas, enlaces, tablas, código y casillas |
-| 🪨 | **Entiende Obsidian** | Oculta el front matter, dibuja los avisos y lista los `[[enlaces]]` como botones que los abren |
+| 🪨 | **Entiende Obsidian** | Muestra las propiedades, dibuja los avisos, oculta los `%% comentarios %%` y lista los `[[enlaces]]` y los enlaces a otras notas como botones que las abren |
+| 🖼️ | **Imágenes** | Una imagen en su propia línea (`![[foto.png]]` o `![](foto.png)`) se ve en la nota |
+| 🔗 | **Backlinks** | Debajo de cada nota, las notas que la enlazan; un enlace a una nota que no existe se ve, pero no se puede pulsar |
 | 🎨 | **Secciones que se distinguen** | Cada `##` abre con una banda de su color, y sus subtítulos van en ese color |
 | 🗂️ | **Varias bóvedas** | Se añaden con el selector de carpetas o pegando la ruta, y se cambia de una a otra |
-| 🔎 | **Búsqueda** | Por nombre y por contenido |
+| 🔄 | **Al día** | Si una nota cambia en el disco, el árbol y la nota abierta se actualizan solos |
+| 🔎 | **Búsqueda** | Por nombre y por contenido, con el trozo de texto donde aparece |
 | ↗️ | **Abrir en Obsidian** | Abre la nota en la app, aunque la carpeta añadida sea una subcarpeta de la bóveda |
 | 🌍 | **En el idioma de Orca** | Inglés o español |
 
@@ -43,8 +46,10 @@
 
 ## 🔐 Qué toca
 
-- **Solo lectura.** Nunca escribe en una bóveda; lo único que guarda es la lista de bóvedas.
-- **Solo las bóvedas añadidas.** El worker rechaza cualquier ruta que se salga de una.
+- **Solo lectura.** Nunca escribe en una bóveda; guarda la lista de bóvedas y, en la carpeta
+  `cache/` del plugin, una copia de las imágenes que muestra (hasta 200 MB).
+- **Solo las bóvedas añadidas.** El worker rechaza cualquier ruta que se salga de una, también
+  a través de un enlace simbólico.
 - **Nada sale del equipo.** No hace llamadas de red.
 
 ---

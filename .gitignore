@@ -2,3 +2,5 @@ node_modules/
 .orca/
 # Worktrees of agent sessions and Orca workspaces
 .claude/worktrees/
+# Images the worker copies out of the vaults for Orca's Image component
+cache/

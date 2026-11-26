@@ -14,12 +14,15 @@ de abajo es para Claude.
 - `src/protocol.ts`: el contrato entre panel y worker. El panel no puede importar módulos de
   Node: todo lo que lee del disco se lo pide al worker.
 - `src/panel/`: `panel.tsx` (barra, árbol, búsqueda, bóvedas y la nota), `panel.check.ts` (los
-  escenarios de `orca plugin check`), `markdown.ts` (front matter, avisos, `[[enlaces]]`,
+  escenarios de `orca plugin check`), `markdown.ts` (propiedades, comentarios, avisos, enlaces,
   títulos y sus colores, trozos de menos de 16 KiB) e `i18n.ts` (textos por idioma y códigos de
   error del worker; un idioma nuevo es una tabla con todas las claves de la inglesa).
-- `src/worker/`: `worker.ts` (lee las bóvedas y contesta), `vault.ts` (rutas dentro de la
-  bóveda, orden, resolución de enlaces, la URL de Obsidian) y `folder-picker.ts` (PowerShell en
-  Windows, `osascript` en macOS, `zenity` en Linux).
+- `src/worker/`: `worker.ts` (lee las bóvedas, las vigila con `fs.watch`, avisa al panel con
+  `notes.changed` y contesta; importa `markdown.ts` para los backlinks; copia las imágenes a
+  `cache/` del plugin instalado, porque el `Image` de Orca solo enseña ficheros del plugin y sí
+  sirve los que aparecen después de instalarlo), `vault.ts` (rutas
+  dentro de la bóveda, orden, resolución de enlaces, la URL de Obsidian) y `folder-picker.ts`
+  (PowerShell en Windows, `osascript` en macOS, `zenity` en Linux).
 - Cada módulo tiene sus tests al lado (`*.test.ts`, `*.test.tsx`).
 - `assets/draw-images.ps1` dibuja `icon.png` (el del plugin y el del proyecto en Orca), `cover.png`
   y `social-preview.png` (la vista previa de GitHub, que se sube a mano en Settings) a partir de formas.

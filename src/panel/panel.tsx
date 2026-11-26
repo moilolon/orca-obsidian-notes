@@ -3,15 +3,20 @@
 // Every text comes from src/panel/i18n.ts, in Orca's language.
 import {
   atom,
+  Badge,
   Box,
   Button,
   Callout,
   Card,
+  Collapsible,
   EmptyState,
   Heading,
   env,
   IconButton,
+  Image,
   Input,
+  KeyValue,
+  Link,
   List,
   ListItem,
   Markdown,
@@ -21,6 +26,7 @@ import {
   Select,
   Separator,
   set,
+  Skeleton,
   Spinner,
   Stack,
   Text,
@@ -30,15 +36,16 @@ import {
   type TreeItem
 } from 'orca'
 import { format, messagesFor, WORKER_ERRORS, type MessageKey } from './i18n'
-import { noteSegments, sectionTones, wikilinkTargets, type SectionTone, type Segment } from './markdown'
+import { folderCrumbs, frontMatterProperties, noteLinks, noteSegments, sectionTones, splitTags, splitTitle, type NoteLink, type Property, type SectionTone, type Segment } from './markdown'
 import type { NoteFile } from '../protocol'
 
 type View = 'notes' | 'search' | 'vaults' | 'reading'
-type OpenNote = { path: string; title: string; segments: Segment[]; links: string[] }
+/** A link of the open note: `path` is the note it leads to, null when there is none, undefined when unknown. */
+type ResolvedLink = NoteLink & { path?: string | null }
+type OpenNote = { path: string; title: string; segments: Segment[]; links: ResolvedLink[]; properties: Property[] }
 
 /** The folder dialog waits for the person: give it the longest wait Orca allows. */
 const PICKER_TIMEOUT_MS = 120000
-const MAX_TREE_ENTRIES = 4000
 /** The add-a-vault block stays this wide on a wide panel, so the field is not a long thin bar. */
 const ADD_VAULT_WIDTH = 420
 
@@ -48,10 +55,17 @@ const lastNote = atom('lastNote', '', { persist: 'plugin' })
 const view = atom<View>('notes')
 const tree = atom<TreeItem[] | null>(null)
 const truncated = atom(false)
+/** How many entries the worker lists at most, as it answered with the tree. */
+const treeLimit = atom(0)
 const expanded = atom('expanded', [] as string[], { persist: 'plugin' })
 const note = atom<OpenNote | null>(null)
 const query = atom('')
 const results = atom<NoteFile[] | null>(null)
+const resultsTruncated = atom(false)
+/** The notes linking to the open one; null while they are being looked for. */
+const backlinks = atom<NoteFile[] | null>(null)
+/** Each image target of the vault as a plugin file (`cache/…`), or null when it cannot be shown. */
+const imageSources = atom<Record<string, string | null>>({})
 const newVault = atom('')
 const problem = atom('')
 
@@ -80,24 +94,98 @@ async function guarded(action: () => Promise<void>): Promise<void> {
   }
 }
 
-async function loadTree(): Promise<void> {
-  set(tree, null)
-  const answer = await plugin.request('notes.tree', { vault: read(vault) })
-  set(tree, answer.items)
-  set(truncated, answer.truncated)
+/**
+ * The vault's tree. `quiet` keeps the tree on screen while it loads (a change on disk); a
+ * failure puts back what was there, so the spinner never stays.
+ */
+async function loadTree(options: { refresh?: boolean; quiet?: boolean } = {}): Promise<void> {
+  const before = read(tree)
+  if (!options.quiet) set(tree, null)
+  try {
+    const answer = await plugin.request('notes.tree', { vault: read(vault), refresh: options.refresh === true })
+    set(tree, answer.items)
+    set(truncated, answer.truncated)
+    set(treeLimit, answer.limit)
+  } catch (error) {
+    set(tree, before || [])
+    throw error
+  }
 }
 
-async function openNote(path: string): Promise<void> {
+/** The note each link leads to; unknown (pressing resolves it then) when the worker cannot say. */
+async function resolveLinks(links: NoteLink[]): Promise<ResolvedLink[]> {
+  if (!links.length) return []
+  try {
+    const answer = await plugin.request('notes.resolve', { vault: read(vault), targets: links.map((link) => link.target) })
+    return links.map((link, index) => ({ ...link, path: answer.paths[index] }))
+  } catch {
+    return links
+  }
+}
+
+async function loadBacklinks(path: string): Promise<void> {
+  set(backlinks, null)
+  let found: NoteFile[] = []
+  try {
+    found = (await plugin.request('notes.backlinks', { vault: read(vault), path })).results
+  } catch {
+    // The backlinks are extra: the note reads the same without them.
+  }
+  const open = read(note)
+  if (open && open.path === path) set(backlinks, found)
+}
+
+/** Asks the worker for the note's images it has not copied yet, one after another. */
+async function loadImages(segments: readonly Segment[]): Promise<void> {
+  for (const segment of segments) {
+    if (segment.kind !== 'image' || segment.target in read(imageSources)) continue
+    let src: string | null = null
+    try {
+      src = (await plugin.request('notes.image', { vault: read(vault), target: segment.target })).src
+    } catch {
+      // Shown by its name, as before images were drawn.
+    }
+    set(imageSources, { ...read(imageSources), [segment.target]: src })
+  }
+}
+
+/** Reads a note into the panel; `show` switches to it, otherwise the current view stays. */
+async function openNote(path: string, show: boolean = true): Promise<void> {
   const answer = await plugin.request('notes.read', { vault: read(vault), path })
-  set(note, { path: answer.path, title: answer.title, segments: noteSegments(answer.text), links: wikilinkTargets(answer.text) })
+  const changed = read(note)?.path !== answer.path
+  const links = await resolveLinks(noteLinks(answer.text, answer.path))
+  const segments = noteSegments(answer.text, answer.path)
+  set(note, {
+    path: answer.path,
+    title: answer.title,
+    segments,
+    links,
+    properties: frontMatterProperties(answer.text)
+  })
   set(lastNote, answer.path)
-  set(view, 'reading')
+  if (show) set(view, 'reading')
+  if (changed || show) void loadBacklinks(answer.path)
+  void loadImages(segments)
 }
 
-async function followLink(target: string): Promise<void> {
-  const answer = await plugin.request('notes.resolve', { vault: read(vault), target })
-  if (!answer.path) throw new Error(text('noLinkedNote', { target }))
-  await openNote(answer.path)
+async function followLink(link: ResolvedLink): Promise<void> {
+  const path = link.path === undefined ? (await plugin.request('notes.resolve', { vault: read(vault), targets: [link.target] })).paths[0] : link.path
+  if (!path) throw new Error(text('noLinkedNote', { target: link.target }))
+  await openNote(path)
+}
+
+/** The vault changed on disk: the tree and the open note follow it without a spinner. */
+async function followDisk(): Promise<void> {
+  // An image may have changed too: its copy gets a new name, so ask again.
+  set(imageSources, {})
+  await loadTree({ quiet: true })
+  const open = read(note)
+  if (!open) return
+  try {
+    await openNote(open.path, false)
+  } catch {
+    // Renamed or deleted: the panel keeps showing what it read last.
+  }
 }
 
 async function switchVault(path: string): Promise<void> {
@@ -106,6 +194,9 @@ async function switchVault(path: string): Promise<void> {
   set(lastNote, '')
   set(expanded, [])
   set(results, null)
+  set(backlinks, null)
+  set(imageSources, {})
+  set(tree, [])
   set(view, 'notes')
   await loadTree()
 }
@@ -141,21 +232,36 @@ async function search(value: string): Promise<void> {
   if (!value.trim()) return set(results, null)
   const answer = await plugin.request('notes.search', { vault: read(vault), query: value })
   set(results, answer.results)
+  set(resultsTruncated, answer.truncated)
 }
 
 function toggleView(next: View): void {
   set(view, read(view) === next && read(note) ? 'reading' : next)
 }
 
-/** Runs once before the first render: the vault list, the tree and the note open last time. */
-export function setup(_ctx: PanelContext): void {
+/**
+ * Runs once before the first render: the vault list, the tree and the note open last time, and
+ * from then on the worker's word that the vault changed on disk.
+ */
+export function setup(ctx: PanelContext): void {
+  ctx.subscriptions.push(
+    plugin.on('notes.changed', ({ vault: changed }) => {
+      if (changed === read(vault)) void guarded(followDisk)
+    })
+  )
   void guarded(async () => {
     const answer = await plugin.request('vaults.list')
     set(vaults, answer.vaults)
     if (!answer.vaults.length) return set(view, 'vaults')
     if (!answer.vaults.includes(read(vault))) set(vault, answer.vaults[0])
     await loadTree()
-    if (read(lastNote)) await openNote(read(lastNote))
+    if (!read(lastNote)) return
+    try {
+      await openNote(read(lastNote))
+    } catch {
+      // Moved or deleted since: start from the tree, with no error for a note nobody asked for.
+      set(lastNote, '')
+    }
   })
 }
 
@@ -226,6 +332,8 @@ function VaultsView() {
 function NotesView() {
   const items = read(tree)
   if (items === null) return <Spinner label={text('readingVault')} />
+  // After a failed read the error says what happened: "no notes" would mislead.
+  if (items.length === 0 && read(problem)) return null
   if (items.length === 0) return <EmptyState icon="file-text" title={text('noNotesTitle')} description={text('noNotesDescription')} />
   return (
     <Stack gap="xs">
@@ -240,7 +348,7 @@ function NotesView() {
           if (key.toLowerCase().endsWith('.md')) void guarded(() => openNote(key))
         }}
       />
-      {read(truncated) ? <Text muted size="xs">{text('truncated', { count: MAX_TREE_ENTRIES })}</Text> : null}
+      {read(truncated) ? <Text muted size="xs">{text('truncated', { count: read(treeLimit) })}</Text> : null}
     </Stack>
   )
 }
@@ -255,10 +363,13 @@ function SearchView() {
       ) : (
         <List label={text('results')}>
           {found.map((hit) => (
-            <ListItem title={hit.name} description={hit.path} icon="file-text" onPress={() => guarded(() => openNote(hit.path))} />
+            <ListItem title={hit.name} description={hit.path} icon="file-text" onPress={() => guarded(() => openNote(hit.path))}>
+              {hit.snippet ? <Text muted size="xs">{hit.snippet}</Text> : null}
+            </ListItem>
           ))}
         </List>
       )}
+      {found && read(resultsTruncated) ? <Text muted size="xs">{text('searchTruncated', { count: found.length })}</Text> : null}
     </Stack>
   )
 }
@@ -290,14 +401,23 @@ function HeadingView(segment: Extract<Segment, { kind: 'heading' }>, tone: Secti
   return (
     <Box paddingY="lg">
       <Box background={tone} border={tone} radius="md" paddingX="sm" paddingY="sm" direction="row" align="center">
-        <Heading level={1}>{segment.text}</Heading>
+        <Heading level={2}>{segment.text}</Heading>
       </Box>
     </Box>
   )
 }
 
+/** An image of the vault: a placeholder while the worker copies it, its name when it cannot. */
+function ImageView(segment: Extract<Segment, { kind: 'image' }>) {
+  const src = read(imageSources)[segment.target]
+  if (src === undefined) return <Skeleton shape="block" label={text('loadingImage')} />
+  if (src === null) return <Text muted size="sm">{`(${segment.alt})`}</Text>
+  return <Image src={src} alt={segment.alt} size="full" fit="contain" rounded />
+}
+
 function SegmentView(segment: Segment, tone: SectionTone) {
   if (segment.kind === 'markdown') return <Markdown content={segment.text} />
+  if (segment.kind === 'image') return ImageView(segment)
   if (segment.kind === 'heading') return HeadingView(segment, tone)
   return (
     <Callout tone={segment.tone} title={segment.title}>
@@ -306,27 +426,93 @@ function SegmentView(segment: Segment, tone: SectionTone) {
   )
 }
 
+/** A link of the note as a button; a link to no note is drawn, but cannot be pressed. */
+function LinkButton(link: ResolvedLink) {
+  const missing = link.path === null
+  return (
+    <Button size="xs" variant="outline" icon="link" disabled={missing} tooltip={missing ? text('linkMissing') : link.path || link.target} onPress={() => guarded(() => followLink(link))}>
+      {link.label}
+    </Button>
+  )
+}
+
+/** Shows the notes tree opened down to a folder (`''`, the vault itself, leaves it as it was). */
+function showInTree(path: string): void {
+  const parts = path ? path.split('/') : []
+  const ancestors = parts.map((_part, index) => parts.slice(0, index + 1).join('/'))
+  set(expanded, [...new Set([...read(expanded), ...ancestors])])
+  set(view, 'notes')
+}
+
+/**
+ * The note's head: the folders it sits in, each opening the notes tree there; the title, the
+ * opening `#` heading or the file name; the tags as badges; the other properties folded away.
+ * A rule sets it apart from the note.
+ */
+function NoteHeader(open: OpenNote) {
+  const { title } = splitTitle(open.segments, open.title)
+  const { tags, others } = splitTags(open.properties)
+  const crumbs = [{ label: folderName(read(vault)), path: '' }, ...folderCrumbs(open.path)]
+  return (
+    <Stack gap="sm">
+      <Row gap="xs" align="center" wrap>
+        {crumbs.map((crumb, index) => [
+          index > 0 ? <Text muted size="xs">›</Text> : null,
+          // Orca's Link holds only text, at the size of the text around it.
+          <Link onPress={() => showInTree(crumb.path)}>{crumb.label}</Link>
+        ])}
+      </Row>
+      <Heading level={1}>{title}</Heading>
+      {tags.length ? (
+        <Row gap="xs" wrap>
+          {tags.map((tag) => (
+            <Badge tone="accent">{`#${tag}`}</Badge>
+          ))}
+        </Row>
+      ) : null}
+      {others.length ? (
+        <Collapsible title={text('propertiesCount', { count: others.length })}>
+          <KeyValue label={text('properties')} items={others.map(({ label, value }) => ({ label, value }))} />
+        </Collapsible>
+      ) : null}
+      <Separator />
+    </Stack>
+  )
+}
+
 function ReadingView() {
   const open = read(note)
   if (!open) return <EmptyState icon="file-text" title={text('chooseNoteTitle')} description={text('chooseNoteDescription')} />
+  const linkedFrom = read(backlinks) || []
   return (
     <Stack gap="sm">
-      <Text muted size="xs" truncate>{open.path}</Text>
+      {NoteHeader(open)}
       {(() => {
-        const tones = sectionTones(open.segments)
-        return open.segments.map((segment, index) => SegmentView(segment, tones[index]))
+        const { body } = splitTitle(open.segments, open.title)
+        const tones = sectionTones(body)
+        return body.map((segment, index) => SegmentView(segment, tones[index]))
       })()}
-      {open.links.length ? (
+      {open.links.length || linkedFrom.length ? (
         // Apart from the note: a rule and room above, like a section of its own.
         <Box paddingY="md">
           <Stack gap="sm">
             <Separator />
-            <Text muted size="xs" weight="medium">{text('links')}</Text>
-            <Row gap="xs" wrap>
-              {open.links.map((target) => (
-                <Button size="xs" variant="outline" icon="link" onPress={() => guarded(() => followLink(target))}>{target}</Button>
-              ))}
-            </Row>
+            {open.links.length ? (
+              <Stack gap="xs">
+                <Text muted size="xs" weight="medium">{text('links')}</Text>
+                <Row gap="xs" wrap>{open.links.map(LinkButton)}</Row>
+              </Stack>
+            ) : null}
+            {linkedFrom.length ? (
+              <Stack gap="xs">
+                <Text muted size="xs" weight="medium">{text('backlinks')}</Text>
+                <Row gap="xs" wrap>
+                  {linkedFrom.map((hit) => (
+                    <Button size="xs" variant="ghost" icon="file-text" tooltip={hit.path} onPress={() => guarded(() => openNote(hit.path))}>{hit.name}</Button>
+                  ))}
+                </Row>
+              </Stack>
+            ) : null}
           </Stack>
         </Box>
       ) : null}
@@ -338,9 +524,11 @@ async function openInObsidian(path: string): Promise<void> {
   await plugin.request('notes.openInObsidian', { vault: read(vault), path })
 }
 
+/** Reads the disk again, whatever the worker kept; the view stays where it is. */
 async function reload(open: OpenNote | null): Promise<void> {
-  await loadTree()
-  if (open) await openNote(open.path)
+  set(imageSources, {})
+  await loadTree({ refresh: true })
+  if (open) await openNote(open.path, read(view) === 'reading')
 }
 
 export default function Panel() {

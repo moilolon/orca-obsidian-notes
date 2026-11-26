@@ -37,11 +37,18 @@ const en = {
   chooseNoteTitle: 'Pick a note',
   chooseNoteDescription: 'Open one from the tree or the search.',
   links: 'Links',
+  backlinks: 'Linked from',
+  linkMissing: 'There is no such note in this vault',
+  properties: 'Properties',
+  propertiesCount: 'Properties ({count})',
+  loadingImage: 'Loading the image',
+  searchTruncated: 'Only the first {count} results are shown.',
   noLinkedNote: 'There is no note "{target}" in this vault',
   notAFolder: 'That path is not a folder',
   notAVault: 'That folder is not in the vault list',
   notANote: 'That file is not a note in this vault',
   noteTooLarge: 'The note is larger than 1 MiB',
+  noteMissing: 'That note no longer exists',
   pickerUnavailable: 'The folder dialog is not available on this system: paste the path instead'
 }
 
@@ -83,11 +90,18 @@ const es: Record<MessageKey, string> = {
   chooseNoteTitle: 'Elige una nota',
   chooseNoteDescription: 'Ábrela desde el árbol o la búsqueda.',
   links: 'Enlaces',
+  backlinks: 'Enlazada desde',
+  linkMissing: 'No hay ninguna nota así en esta bóveda',
+  properties: 'Propiedades',
+  propertiesCount: 'Propiedades ({count})',
+  loadingImage: 'Cargando la imagen',
+  searchTruncated: 'Solo se muestran los primeros {count} resultados.',
   noLinkedNote: 'No hay ninguna nota "{target}" en esta bóveda',
   notAFolder: 'Esa ruta no es una carpeta',
   notAVault: 'Esa carpeta no está en la lista de bóvedas',
   notANote: 'Ese fichero no es una nota de esta bóveda',
   noteTooLarge: 'La nota ocupa más de 1 MiB',
+  noteMissing: 'Esa nota ya no existe',
   pickerUnavailable: 'El selector de carpetas no está disponible en este sistema: pega la ruta'
 }
 
@@ -110,5 +124,6 @@ export const WORKER_ERRORS: Record<string, MessageKey> = {
   not_a_vault: 'notAVault',
   not_a_note: 'notANote',
   note_too_large: 'noteTooLarge',
+  note_missing: 'noteMissing',
   picker_unavailable: 'pickerUnavailable'
 }
