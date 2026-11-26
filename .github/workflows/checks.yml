@@ -1,0 +1,44 @@
+name: checks
+
+# The checks a pull request must pass (Dependabot's too): the types, the tests and the panel
+# rendered once. They run on the Orca CLI of the latest release, the one users update to; its
+# Linux server build carries the CLI and the plugin runtime with no desktop app.
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+
+      # The Node Orca runs plugin workers on
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install the Orca CLI
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cd "$RUNNER_TEMP"
+          gh release download --repo stablyai/orca \
+            --pattern orca-server-linux-x64.tar.gz --pattern orca-server-sha256sums.txt
+          grep ' orca-server-linux-x64.tar.gz$' orca-server-sha256sums.txt | sha256sum --check -
+          mkdir orca && tar xzf orca-server-linux-x64.tar.gz --strip-components=1 -C orca
+          mkdir bin && ln -s "$RUNNER_TEMP/orca/bin/orca-ide" bin/orca
+          echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
+
+      - run: orca plugin types .
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run check

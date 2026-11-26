@@ -46,6 +46,10 @@ powershell -NoProfile -File assets/draw-images.ps1   # redraws the icon, cover a
 The tests can pass with a blank panel: check each change with `orca plugin shot` or in the
 panel itself.
 
+`.github/workflows/checks.yml` runs the types, the tests and `orca plugin check` on every pull
+request (Dependabot's too) with the Orca CLI of the latest release (its Linux server build). The
+job is `checks`, the status the `main` ruleset requires.
+
 ## Git
 
 - **Commits:** English, imperative, sentence case, one line of at most 72 characters with no

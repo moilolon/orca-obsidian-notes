@@ -1,5 +1,5 @@
-# Keeps the development types current: Dependabot opens the pull requests, and `npm run
-# typecheck` and `npm test` say whether they are safe to merge.
+# Keeps the development types current: Dependabot opens the pull requests, and the checks
+# workflow (types, tests and orca plugin check) says whether they are safe to merge.
 version: 2
 
 updates:
