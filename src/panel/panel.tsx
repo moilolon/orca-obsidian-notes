@@ -183,6 +183,28 @@ function AddVault() {
   )
 }
 
+/**
+ * One vault: its name and path, then its buttons on the right. Not a ListItem: Orca draws a
+ * ListItem's children under the text, and a pressable one cannot hold other controls.
+ */
+function VaultRow(path: string) {
+  const current = path === read(vault)
+  return (
+    <Box direction="row" align="center" gap="sm" paddingX="sm" paddingY="xs" radius="md" background={current ? 'muted' : 'none'}>
+      <Box grow>
+        <Stack gap="none">
+          <Text weight={current ? 'semibold' : 'regular'} truncate>{folderName(path)}</Text>
+          <Text muted size="xs" truncate>{path}</Text>
+        </Stack>
+      </Box>
+      {current ? null : (
+        <IconButton icon="check" label={text('useVault', { name: folderName(path) })} tooltip={text('useVaultTooltip')} variant="ghost" size="sm" onPress={() => guarded(() => switchVault(path))} />
+      )}
+      <IconButton icon="delete" label={text('removeVault', { name: folderName(path) })} tooltip={text('removeVaultTooltip')} variant="ghost" size="sm" onPress={() => guarded(() => removeVault(path))} />
+    </Box>
+  )
+}
+
 function VaultsView() {
   const list = read(vaults)
   if (list.length === 0) {
@@ -195,17 +217,7 @@ function VaultsView() {
   }
   return (
     <Stack gap="lg">
-      <List label={text('vaultList')}>
-        {list.map((path) => (
-          // A pressable row cannot hold other controls in Orca, so opening a vault is a button too.
-          <ListItem title={folderName(path)} description={path} icon="folder" current={path === read(vault)}>
-            {path === read(vault) ? null : (
-              <IconButton icon="check" label={text('useVault', { name: folderName(path) })} tooltip={text('useVaultTooltip')} variant="ghost" size="xs" onPress={() => guarded(() => switchVault(path))} />
-            )}
-            <IconButton icon="remove" label={text('removeVault', { name: folderName(path) })} tooltip={text('removeVaultTooltip')} variant="ghost" size="xs" onPress={() => guarded(() => removeVault(path))} />
-          </ListItem>
-        ))}
-      </List>
+      <Stack gap="xs">{list.map(VaultRow)}</Stack>
       <Card title={text('addAnotherVault')}>{AddVault()}</Card>
     </Stack>
   )
