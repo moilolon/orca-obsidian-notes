@@ -44,7 +44,7 @@
 
 ---
 
-## 🔐 Qué toca
+## 🔐 Seguridad
 
 - **Solo lectura.** Nunca escribe en una bóveda; guarda la lista de bóvedas y, en la carpeta
   `cache/` del plugin, una copia de las imágenes que muestra (hasta 200 MB).
