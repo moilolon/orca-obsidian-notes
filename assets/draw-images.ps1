@@ -1,23 +1,21 @@
-﻿# Draws the plugin's icon (256x256), the README cover (1600x1000) and the GitHub social preview
-# (1280x640) into assets/, as PNG.
-# Run from the repository root: powershell -NoProfile -File assets/draw-images.ps1
-# Everything is drawn here from shapes: no screenshot, so no note content ends up in the images.
+﻿# Dibuja la portada del README (assets/cover.png, 1600x1000), el icono (assets/icon.png, 256x256,
+# el que Orca enseña como icono del proyecto) y la vista previa de GitHub
+# (assets/social-preview.png, 1280x640, que se sube a mano en Settings si el repo es público),
+# oscuros y a partir de formas.
+# Desde la raíz del repo: powershell -NoProfile -File assets/draw-images.ps1
 Add-Type -AssemblyName System.Drawing
 
 $assets = Split-Path -Parent $MyInvocation.MyCommand.Path
 
-# The section colors the panel uses, in order (accent, success, warning, danger), on a dark ground.
-$ground = [System.Drawing.Color]::FromArgb(255, 30, 34, 42)
-$sheet = [System.Drawing.Color]::FromArgb(255, 44, 49, 60)
-$line = [System.Drawing.Color]::FromArgb(255, 86, 94, 110)
-$bands = @(
-  [System.Drawing.Color]::FromArgb(255, 122, 162, 247),
-  [System.Drawing.Color]::FromArgb(255, 120, 200, 140),
-  [System.Drawing.Color]::FromArgb(255, 230, 185, 90),
-  [System.Drawing.Color]::FromArgb(255, 235, 110, 110)
-)
-$purple = [System.Drawing.Color]::FromArgb(255, 124, 92, 220)
-$violet = [System.Drawing.Color]::FromArgb(255, 72, 52, 150)
+function Get-Color([string]$hex, [int]$alpha = 255) {
+  $c = [System.Drawing.ColorTranslator]::FromHtml($hex)
+  return [System.Drawing.Color]::FromArgb($alpha, $c.R, $c.G, $c.B)
+}
+
+$ground = Get-Color '#1E222A'
+$frame = Get-Color '#181B22'
+$sheet = Get-Color '#2C313C'
+$line = Get-Color '#565E6E'
 
 function New-RoundedPath([float]$x, [float]$y, [float]$w, [float]$h, [float]$r) {
   $path = New-Object System.Drawing.Drawing2D.GraphicsPath
@@ -37,13 +35,94 @@ function Fill-Rounded($g, $color, [float]$x, [float]$y, [float]$w, [float]$h, [f
   $brush.Dispose(); $path.Dispose()
 }
 
+function Fill-Gradient($g, $from, $to, [float]$x, [float]$y, [float]$w, [float]$h, [float]$r) {
+  $brush = New-Object System.Drawing.Drawing2D.LinearGradientBrush((New-Object System.Drawing.PointF $x, $y), (New-Object System.Drawing.PointF ($x + $w), ($y + $h)), $from, $to)
+  $path = New-RoundedPath $x $y $w $h $r
+  $g.FillPath($brush, $path)
+  $brush.Dispose(); $path.Dispose()
+}
+
+function Write-Text($g, [string]$text, [string]$font, [float]$size, $color, [float]$x, [float]$y) {
+  $f = New-Object System.Drawing.Font($font, $size)
+  $b = New-Object System.Drawing.SolidBrush $color
+  $g.DrawString($text, $f, $b, $x, $y)
+  $f.Dispose(); $b.Dispose()
+}
+
+function Draw-Lines($g, [float]$x, [float]$y, [float]$w, [float[]]$fractions, [float]$gap) {
+  foreach ($fraction in $fractions) {
+    Fill-Rounded $g $line $x $y ($w * $fraction) 8 4
+    $y += $gap
+  }
+}
+
 function New-Canvas([int]$w, [int]$h) {
   $bitmap = New-Object System.Drawing.Bitmap $w, $h
   $g = [System.Drawing.Graphics]::FromImage($bitmap)
   $g.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::AntiAlias
   $g.TextRenderingHint = [System.Drawing.Text.TextRenderingHint]::AntiAliasGridFit
+  $g.InterpolationMode = [System.Drawing.Drawing2D.InterpolationMode]::HighQualityBicubic
   return @($bitmap, $g)
 }
+
+# The icon: the accent's gradient square with the repo's symbol, drawn where the cover puts it
+# (120,250, 120 px). $glyph draws the symbol in those coordinates.
+function Draw-Icon($g, $cover, [scriptblock]$glyph) {
+  Fill-Gradient $g (Get-Color $cover.Accent) (Get-Color $cover.AccentDark) 120 250 120 120 26
+  & $glyph $g
+}
+
+# The cover, 1600 px wide plus $extra on each side: the ground and the glow fill it all, the
+# content stays in the middle 1600x1000.
+function Draw-Cover($g, $cover, [int]$extra) {
+  $width = 1600 + 2 * $extra
+  $g.Clear($ground)
+  $glow = New-Object System.Drawing.Drawing2D.LinearGradientBrush((New-Object System.Drawing.Point 0, 0), (New-Object System.Drawing.Point $width, 1000), (Get-Color $cover.Accent 70), (Get-Color $cover.Accent 0))
+  $g.FillRectangle($glow, 0, 0, $width, 1000)
+  $glow.Dispose()
+  $g.TranslateTransform($extra, 0)
+  Draw-Icon $g $cover $cover.Glyph
+  Write-Text $g $cover.Title 'Segoe UI Semibold' 60 (Get-Color '#ECEFF4') 112 400
+  for ($i = 0; $i -lt $cover.Text.Count; $i++) {
+    Write-Text $g $cover.Text[$i] 'Segoe UI' 28 (Get-Color '#A0A8B6') 120 (520 + $i * 46)
+  }
+  Fill-Rounded $g $frame 900 90 580 820 28
+  for ($i = 0; $i -lt 3; $i++) { Fill-Rounded $g $line (936 + $i * 40) 122 22 22 11 }
+  & $cover.Picture $g
+  $g.ResetTransform()
+}
+
+function Save-Images($cover) {
+  $canvas = New-Canvas 1600 1000
+  Draw-Cover $canvas[1] $cover 0
+  $canvas[1].Dispose()
+  $canvas[0].Save((Join-Path $assets 'cover.png'), [System.Drawing.Imaging.ImageFormat]::Png)
+  $canvas[0].Dispose()
+
+  # GitHub's preview is 2:1: the cover widened to 2000x1000, then scaled to 1280x640.
+  $wide = New-Canvas 2000 1000
+  Draw-Cover $wide[1] $cover 200
+  $wide[1].Dispose()
+  $social = New-Canvas 1280 640
+  $social[1].DrawImage($wide[0], 0, 0, 1280, 640)
+  $social[1].Dispose(); $wide[0].Dispose()
+  $social[0].Save((Join-Path $assets 'social-preview.png'), [System.Drawing.Imaging.ImageFormat]::Png)
+  $social[0].Dispose()
+
+  # The icon, the cover's 120 px square drawn at 240 px on a transparent 256x256.
+  $icon = New-Canvas 256 256
+  $icon[1].Clear([System.Drawing.Color]::Transparent)
+  $icon[1].Transform = New-Object System.Drawing.Drawing2D.Matrix(2, 0, 0, 2, -232, -492)
+  Draw-Icon $icon[1] $cover $cover.Glyph
+  $icon[1].Dispose()
+  $icon[0].Save((Join-Path $assets 'icon.png'), [System.Drawing.Imaging.ImageFormat]::Png)
+  $icon[0].Dispose()
+
+  Write-Output 'cover.png, icon.png and social-preview.png written'
+}
+
+# The section colors the panel uses, in order (accent, success, warning, danger).
+$bands = @((Get-Color '#7AA2F7'), (Get-Color '#78C88C'), (Get-Color '#E6B95A'), (Get-Color '#EB6E6E'))
 
 # A note sheet: colored section bands, each followed by gray text lines.
 function Draw-Note($g, [float]$x, [float]$y, [float]$w, [float]$h, [float]$scale) {
@@ -140,65 +219,24 @@ function Draw-CoverNote($g, [float]$x, [float]$y) {
   $pen.Dispose()
 }
 
-# Icon: a purple rounded square with a note sheet in front.
-$canvas = New-Canvas 256 256
-$bitmap = $canvas[0]; $g = $canvas[1]
-$g.Clear([System.Drawing.Color]::Transparent)
-$gradient = New-Object System.Drawing.Drawing2D.LinearGradientBrush((New-Object System.Drawing.Point 0, 0), (New-Object System.Drawing.Point 256, 256), $purple, $violet)
-$square = New-RoundedPath 8 8 240 240 52
-$g.FillPath($gradient, $square)
-Draw-Note $g 52 40 152 176 1.15
-$bitmap.Save((Join-Path $assets 'icon.png'), [System.Drawing.Imaging.ImageFormat]::Png)
-$g.Dispose(); $bitmap.Dispose(); $gradient.Dispose(); $square.Dispose()
-
-# Cover: the name and what it does on the left, a panel with a note on the right. 1600 px wide
-# plus $extra on each side: the ground and the glow fill it all, the content stays in the middle.
-function Draw-Cover($g, [int]$extra) {
-  $width = 1600 + 2 * $extra
-  $g.Clear($ground)
-  $glow = New-Object System.Drawing.Drawing2D.LinearGradientBrush((New-Object System.Drawing.Point 0, 0), (New-Object System.Drawing.Point $width, 1000), [System.Drawing.Color]::FromArgb(70, 124, 92, 220), [System.Drawing.Color]::FromArgb(0, 124, 92, 220))
-  $g.FillRectangle($glow, 0, 0, $width, 1000)
-  $g.TranslateTransform($extra, 0)
-
-  $iconBrush = New-Object System.Drawing.Drawing2D.LinearGradientBrush((New-Object System.Drawing.Point 120, 250), (New-Object System.Drawing.Point 240, 370), $purple, $violet)
-  $iconPath = New-RoundedPath 120 250 120 120 26
-  $g.FillPath($iconBrush, $iconPath)
-  Draw-Note $g 145 266 70 88 0.55
-
-  $white = New-Object System.Drawing.SolidBrush ([System.Drawing.Color]::FromArgb(255, 236, 239, 244))
-  $muted = New-Object System.Drawing.SolidBrush ([System.Drawing.Color]::FromArgb(255, 160, 168, 182))
-  $titleFont = New-Object System.Drawing.Font('Segoe UI Semibold', 64)
-  $textFont = New-Object System.Drawing.Font('Segoe UI', 28)
-  $g.DrawString('Obsidian Notes', $titleFont, $white, 112, 400)
-  $g.DrawString("Your Obsidian vault in Orca's sidebar:", $textFont, $muted, 120, 520)
-  $g.DrawString('images, backlinks, callouts and links,', $textFont, $muted, 120, 566)
-  $g.DrawString('with the open note filling the panel.', $textFont, $muted, 120, 612)
-
-  Fill-Rounded $g ([System.Drawing.Color]::FromArgb(255, 24, 27, 34)) 960 90 520 820 28
-  for ($i = 0; $i -lt 5; $i++) {
-    Fill-Rounded $g $line (996 + $i * 52) 122 28 28 7
-  }
-  Draw-CoverNote $g 990 182
-
-  $g.ResetTransform()
-  $glow.Dispose(); $iconBrush.Dispose(); $iconPath.Dispose(); $white.Dispose(); $muted.Dispose(); $titleFont.Dispose(); $textFont.Dispose()
+# The cover is also the plugin's in Orca's catalog, which is in English: its text stays in English.
+$cover = @{
+  Accent = '#7C5CDC'
+  AccentDark = '#483496'
+  Title = 'Obsidian Notes'
+  Text = @("Your Obsidian vault in Orca's sidebar:", 'images, backlinks, callouts and links,', 'with the open note filling the panel.')
 }
 
-$canvas = New-Canvas 1600 1000
-Draw-Cover $canvas[1] 0
-$canvas[1].Dispose()
-$canvas[0].Save((Join-Path $assets 'cover.png'), [System.Drawing.Imaging.ImageFormat]::Png)
-$canvas[0].Dispose()
+$cover.Glyph = {
+  param($g)
+  # El símbolo: una nota con sus bandas de sección.
+  Draw-Note $g 145 266 70 88 0.55
+}
 
-# GitHub's social preview (uploaded by hand in Settings) is 2:1: the cover widened to 2000x1000,
-# then scaled to 1280x640.
-$wide = New-Canvas 2000 1000
-Draw-Cover $wide[1] 200
-$wide[1].Dispose()
-$social = New-Canvas 1280 640
-$social[1].InterpolationMode = [System.Drawing.Drawing2D.InterpolationMode]::HighQualityBicubic
-$social[1].DrawImage($wide[0], 0, 0, 1280, 640)
-$social[1].Dispose(); $wide[0].Dispose()
-$social[0].Save((Join-Path $assets 'social-preview.png'), [System.Drawing.Imaging.ImageFormat]::Png)
-$social[0].Dispose()
-Write-Output 'icon.png, cover.png and social-preview.png written'
+$cover.Picture = {
+  param($g)
+  # El panel lateral con la nota como la enseña: etiquetas, secciones, una imagen y quién la enlaza.
+  Draw-CoverNote $g 960 176
+}
+
+Save-Images $cover

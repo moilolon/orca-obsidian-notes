@@ -25,7 +25,10 @@ de abajo es para Claude.
   (PowerShell en Windows, `osascript` en macOS, `zenity` en Linux).
 - Cada módulo tiene sus tests al lado (`*.test.ts`, `*.test.tsx`).
 - `assets/draw-images.ps1` dibuja `icon.png` (el del plugin y el del proyecto en Orca), `cover.png`
-  y `social-preview.png` (la vista previa de GitHub, que se sube a mano en Settings) a partir de formas.
+  (también la portada del plugin, por eso su texto va en inglés) y `social-preview.png` (la vista
+  previa de GitHub, que solo se sube si el repo es público) a partir de formas. Es la base común
+  de los repos de moilolon (`lib/draw-base.ps1` de workbench, que se copia tal cual) más la parte
+  propia; se guarda en UTF-8 con BOM.
 
 ## Desarrollo
 
@@ -53,3 +56,6 @@ o en el propio panel.
   «Cómo comprobarlo». Se mergean por squash, con el título y el cuerpo del PR como commit.
 - **Tras un cambio de código**, el plugin instalado en Orca no se entera hasta reinstalarlo:
   `README.md`, sección *Puesta en marcha*.
+- **`gh`:** siempre como `GH_TOKEN=$(gh auth token --user moilolon) gh …`, comando a comando. La
+  cuenta activa de `gh` es la del trabajo, que no ve este repo; no la cambies. `git` ya usa
+  `moilolon` por el `includeIf` de `C:/Developer/PERSONAL/`.
