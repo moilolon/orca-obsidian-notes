@@ -64,16 +64,16 @@ test('gives each section the next color and its subsections the same one', () =>
 
 test('lists each linked note once, Markdown links by their vault path, leaving embeds and code out', () => {
   const text = [
-    'See [[Release (GLCG-16693)]], [[Notas/TODO|the todo]] and [[Release (GLCG-16693)#Scope]]. ![[diagram.png]]',
+    'See [[Release (ABC-123)]], [[Docs/TODO|the todo]] and [[Release (ABC-123)#Scope]]. ![[diagram.png]]',
     'Also [the plan](../Plans/Q1%20plan.md#Goals), [web](https://example.com/x.md) and [pic](a.png).',
     '`[[In code]]` %% [[In a comment]] %%',
     '```',
     '[[In a fence]]',
     '```'
   ].join('\n')
-  assert.deepEqual(noteLinks(text, 'Notas/TODO.md'), [
-    { label: 'Release (GLCG-16693)', target: 'Release (GLCG-16693)' },
-    { label: 'Notas/TODO', target: 'Notas/TODO' },
+  assert.deepEqual(noteLinks(text, 'Docs/TODO.md'), [
+    { label: 'Release (ABC-123)', target: 'Release (ABC-123)' },
+    { label: 'Docs/TODO', target: 'Docs/TODO' },
     { label: 'the plan', target: 'Plans/Q1 plan.md' }
   ])
 })
@@ -142,7 +142,7 @@ test('a fence closes only with its own marker', () => {
 })
 
 test('makes an image on a line of its own a segment, by name or by its path from the note', () => {
-  const segments = noteSegments('Before\n![[pic.png|300]]\n![The plan](../img/plan%201.jpg)\nInline ![[pic.png]] stays\n![[Other note]]\n![web](https://x.y/a.png)', 'Notas/TODO.md')
+  const segments = noteSegments('Before\n![[pic.png|300]]\n![The plan](../img/plan%201.jpg)\nInline ![[pic.png]] stays\n![[Other note]]\n![web](https://x.y/a.png)', 'Docs/TODO.md')
   assert.deepEqual(segments, [
     { kind: 'markdown', text: 'Before' },
     { kind: 'image', target: 'pic.png', alt: 'pic.png' },
@@ -157,9 +157,9 @@ test('reads an image caption, but not a width, as its alt text', () => {
 })
 
 test('lists the folders a note sits in, outermost first', () => {
-  assert.deepEqual(folderCrumbs('Guess/Notas/TODO.md'), [
-    { label: 'Guess', path: 'Guess' },
-    { label: 'Notas', path: 'Guess/Notas' }
+  assert.deepEqual(folderCrumbs('Work/Docs/TODO.md'), [
+    { label: 'Work', path: 'Work' },
+    { label: 'Docs', path: 'Work/Docs' }
   ])
   assert.deepEqual(folderCrumbs('Top.md'), [])
 })

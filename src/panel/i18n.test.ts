@@ -15,7 +15,7 @@ test('every language has every message', () => {
 })
 
 test('fills placeholders and leaves unknown ones alone', () => {
-  assert.equal(format('Remove {name}', { name: 'Guess' }), 'Remove Guess')
+  assert.equal(format('Remove {name}', { name: 'Work' }), 'Remove Work')
   assert.equal(format('Only {count} of {total}', { count: 4 }), 'Only 4 of {total}')
 })
 

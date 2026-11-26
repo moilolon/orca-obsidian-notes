@@ -11,7 +11,7 @@ test('uses the folder dialog of each platform', () => {
 })
 
 test('reads a chosen path and treats an empty answer as a cancel', () => {
-  assert.equal(pickedPath('C:\\Developer\\OBSIDIAN\r\n'), 'C:\\Developer\\OBSIDIAN')
+  assert.equal(pickedPath('C:\\Vaults\\Notes\r\n'), 'C:\\Vaults\\Notes')
   assert.equal(pickedPath(''), null)
   assert.equal(pickedPath('  \n'), null)
 })

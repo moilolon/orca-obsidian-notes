@@ -7,10 +7,10 @@ import * as main from './worker'
 
 function makeVault(): string {
   const root = mkdtempSync(join(tmpdir(), 'obsidian-notes-'))
-  mkdirSync(join(root, 'Notas'))
+  mkdirSync(join(root, 'Docs'))
   mkdirSync(join(root, '.obsidian'))
-  writeFileSync(join(root, 'Notas', 'TODO.md'), '# TODO\nSee [[Release]].\n')
-  writeFileSync(join(root, 'Notas', 'Release.md'), '# Release\nTags and builds.\n')
+  writeFileSync(join(root, 'Docs', 'TODO.md'), '# TODO\nSee [[Release]].\n')
+  writeFileSync(join(root, 'Docs', 'Release.md'), '# Release\nTags and builds.\n')
   writeFileSync(join(root, 'Readme.md'), 'Top level note\n')
   writeFileSync(join(root, 'image.png'), 'not a note')
   mkdirSync(join(root, 'assets', 'img'), { recursive: true })
@@ -31,20 +31,20 @@ test('adds a vault, lists its tree and reads a note', async () => {
     assert.equal(truncated, false)
     assert.equal(limit, 4000)
     // `assets` holds only images: no note to open, so no folder in the tree.
-    assert.deepEqual(items.map((item) => item.key), ['Notas', 'Readme.md'])
+    assert.deepEqual(items.map((item) => item.key), ['Docs', 'Readme.md'])
     assert.deepEqual(items[0].children?.map((item) => item.label), ['Release', 'TODO'])
 
-    const note = await worker.request('notes.read', { vault: root, path: 'Notas/TODO.md' })
+    const note = await worker.request('notes.read', { vault: root, path: 'Docs/TODO.md' })
     assert.equal(note.title, 'TODO')
     assert.equal(note.text, '# TODO\nSee [[Release]].\n')
 
-    assert.deepEqual(await worker.request('notes.resolve', { vault: root, targets: ['Release', 'Missing'] }), { paths: ['Notas/Release.md', null] })
+    assert.deepEqual(await worker.request('notes.resolve', { vault: root, targets: ['Release', 'Missing'] }), { paths: ['Docs/Release.md', null] })
     assert.deepEqual(await worker.request('notes.search', { vault: root, query: 'builds' }), {
-      results: [{ path: 'Notas/Release.md', name: 'Release', snippet: '# Release Tags and builds.' }],
+      results: [{ path: 'Docs/Release.md', name: 'Release', snippet: '# Release Tags and builds.' }],
       truncated: false
     })
-    assert.deepEqual(await worker.request('notes.backlinks', { vault: root, path: 'Notas/Release.md' }), {
-      results: [{ path: 'Notas/TODO.md', name: 'TODO' }]
+    assert.deepEqual(await worker.request('notes.backlinks', { vault: root, path: 'Docs/Release.md' }), {
+      results: [{ path: 'Docs/TODO.md', name: 'TODO' }]
     })
     await worker.deactivate()
   } finally {
@@ -55,10 +55,10 @@ test('adds a vault, lists its tree and reads a note', async () => {
 test('refuses a folder that is not an added vault, and a path that climbs out', async () => {
   const root = makeVault()
   try {
-    const worker = await mountWorker(main, { host: mockHost({ storage: { vaults: [join(root, 'Notas')] } }) })
+    const worker = await mountWorker(main, { host: mockHost({ storage: { vaults: [join(root, 'Docs')] } }) })
     // Each refusal carries the code the panel translates (src/panel/i18n.ts WORKER_ERRORS).
     await assert.rejects(() => worker.request('notes.tree', { vault: root }), /not_a_vault/)
-    await assert.rejects(() => worker.request('notes.read', { vault: join(root, 'Notas'), path: '../Readme.md' }), /not_a_note/)
+    await assert.rejects(() => worker.request('notes.read', { vault: join(root, 'Docs'), path: '../Readme.md' }), /not_a_note/)
     await assert.rejects(() => worker.request('vaults.add', { path: join(root, 'missing') }), /not_a_folder/)
     await worker.deactivate()
   } finally {
@@ -84,7 +84,7 @@ test('says a note is gone, and refuses a link that leads out of the vault', asyn
       linked = false // Windows without the right to make links: the rest still runs.
     }
     const worker = await mountWorker(main, { host: mockHost({ storage: { vaults: [root] } }) })
-    await assert.rejects(() => worker.request('notes.read', { vault: root, path: 'Notas/Gone.md' }), /note_missing/)
+    await assert.rejects(() => worker.request('notes.read', { vault: root, path: 'Docs/Gone.md' }), /note_missing/)
     if (linked) {
       await assert.rejects(() => worker.request('notes.read', { vault: root, path: 'Linked.md' }), /not_a_note/)
       const { items } = await worker.request('notes.tree', { vault: root })
