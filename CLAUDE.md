@@ -15,7 +15,8 @@ de abajo es para Claude.
   Node: todo lo que lee del disco se lo pide al worker.
 - `src/panel/`: `panel.tsx` (barra, árbol, búsqueda, bóvedas y la nota), `panel.check.ts` (los
   escenarios de `orca plugin check`), `markdown.ts` (propiedades, comentarios, avisos, enlaces,
-  títulos y sus colores, trozos de menos de 16 KiB) e `i18n.ts` (textos por idioma y códigos de
+  títulos y sus colores, tareas, que el panel dibuja con componentes porque el `Markdown` de Orca
+  les pone viñeta, y trozos de menos de 16 KiB) e `i18n.ts` (textos por idioma y códigos de
   error del worker; un idioma nuevo es una tabla con todas las claves de la inglesa).
 - `src/worker/`: `worker.ts` (lee las bóvedas, las vigila con `fs.watch`, avisa al panel con
   `notes.changed` y contesta; importa `markdown.ts` para los backlinks; copia las imágenes a
