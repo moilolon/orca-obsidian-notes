@@ -34,7 +34,7 @@ export function compareEntries(a: { name: string; isDir: boolean }, b: { name: s
 
 /**
  * The note a `[[target]]` points to, Obsidian's way: the vault-relative path, then a path that
- * ends with the target (`[[Notas/TODO]]` for `Guess/Notas/TODO.md`), then the first note with
+ * ends with the target (`[[Docs/TODO]]` for `Work/Docs/TODO.md`), then the first note with
  * that name.
  */
 export function resolveWikilink(notes: readonly string[], target: string): string | null {

@@ -1,69 +1,63 @@
 <div align="center">
 
-# <img src="assets/icon.png" alt="" width="40" align="absmiddle"> Obsidian Notes para Orca
+# <img src="assets/icon.png" alt="" width="40" align="absmiddle"> Obsidian Notes for Orca
 
-**Tu bóveda de Obsidian en la barra lateral de Orca, con la nota abierta ocupando todo el panel**
+**Your Obsidian vault in Orca's sidebar, with the open note filling the whole panel**
 
-[![Plugin de Orca](https://img.shields.io/badge/Orca-plugin-7C5CDC?style=for-the-badge)](https://github.com/stablyai/orca)
-[![Sin compilación](https://img.shields.io/badge/TypeScript-sin%20compilaci%C3%B3n-3178C6?style=for-the-badge&logo=typescript&logoColor=white)](#-cómo-funciona)
-[![Obsidian](https://img.shields.io/badge/Lee-bóvedas%20de%20Obsidian-7C3AED?style=for-the-badge&logo=obsidian&logoColor=white)](https://obsidian.md/)
+[![Orca plugin](https://img.shields.io/badge/Orca-plugin-7C5CDC?style=for-the-badge)](https://github.com/stablyai/orca)
+[![No build step](https://img.shields.io/badge/TypeScript-no%20build%20step-3178C6?style=for-the-badge&logo=typescript&logoColor=white)](#-how-it-works)
+[![Obsidian](https://img.shields.io/badge/Reads-Obsidian%20vaults-7C3AED?style=for-the-badge&logo=obsidian&logoColor=white)](https://obsidian.md/)
 
-<img src="assets/cover.png" alt="El nombre del plugin junto a un panel lateral con una nota: sus etiquetas, secciones con bandas de color, una imagen y las notas que la enlazan" width="820">
+<img src="assets/cover.png" alt="The plugin's name next to a side panel showing a note: its tags, sections with color bands, an image and the notes linking to it" width="820">
 
 </div>
 
 ---
 
-## ✨ Qué es
+## ✨ What this is
 
-| | Función | Qué hace |
+An Orca plugin that reads the notes of an Obsidian vault in the sidebar, without leaving Orca.
+
+| | Feature | What it does |
 |---|---|---|
-| 📖 | **Lectura a panel completo** | La nota abierta ocupa todo el panel; el árbol y la búsqueda se abren desde la barra |
-| 🧾 | **El Markdown de Orca** | Listas anidadas, enlaces, tablas, código y casillas |
-| 🪨 | **Entiende Obsidian** | Muestra las propiedades, dibuja los avisos, oculta los `%% comentarios %%` y lista los `[[enlaces]]` y los enlaces a otras notas como botones que las abren |
-| 🖼️ | **Imágenes** | Una imagen en su propia línea (`![[foto.png]]` o `![](foto.png)`) se ve en la nota |
-| 🔗 | **Backlinks** | Debajo de cada nota, las notas que la enlazan; un enlace a una nota que no existe se ve, pero no se puede pulsar |
-| 🎨 | **Secciones que se distinguen** | Cada `##` abre con una banda de su color, y sus subtítulos van en ese color |
-| 🗂️ | **Varias bóvedas** | Se añaden con el selector de carpetas o pegando la ruta, y se cambia de una a otra |
-| 🔄 | **Al día** | Si una nota cambia en el disco, el árbol y la nota abierta se actualizan solos |
-| 🔎 | **Búsqueda** | Por nombre y por contenido, con el trozo de texto donde aparece |
-| ↗️ | **Abrir en Obsidian** | Abre la nota en la app, aunque la carpeta añadida sea una subcarpeta de la bóveda |
-| 🌍 | **En el idioma de Orca** | Inglés o español |
+| 📖 | **Full-panel reading** | The open note fills the panel; the tree and the search open from the toolbar |
+| 🧾 | **Orca's Markdown** | Nested lists, links, tables and code |
+| 🪨 | **Speaks Obsidian** | Shows the properties, draws callouts and tasks, hides `%% comments %%` and lists `[[links]]` and links to other notes as buttons that open them |
+| 🖼️ | **Images** | An image on a line of its own (`![[photo.png]]` or `![](photo.png)`) shows in the note |
+| 🔗 | **Backlinks** | Under each note, the notes linking to it; a link to a note that does not exist shows, but cannot be pressed |
+| 🎨 | **Sections that stand apart** | Each `##` opens on a band of its own color, and its subheadings take that color |
+| 🗂️ | **Several vaults** | Added with the folder picker or by pasting the path, and switched from the toolbar |
+| 🔄 | **Up to date** | When a note changes on disk, the tree and the open note follow |
+| 🔎 | **Search** | By name and by content, with the snippet where it matches |
+| ↗️ | **Open in Obsidian** | Opens the note in the app, even when the added folder is a subfolder of the vault |
+| 🌍 | **In Orca's language** | English or Spanish |
 
 ---
 
-## 🧭 Cómo funciona
+## 🧭 How it works
 
-- **Dos partes.** El panel corre dentro de Orca, sin acceso al disco; el worker corre en
-  Node y es lo único que lee las bóvedas. Hablan por un contrato en `src/protocol.ts`.
-- **Sin compilación.** Orca carga los `.ts` y `.tsx` tal cual; `node_modules` solo trae
-  los tipos de desarrollo.
-- **Copia fija.** Orca instala una copia de la carpeta, así que un cambio solo llega al
-  volver a instalar. Los tests pueden pasar aunque el panel no se dibuje: cada cambio se
-  mira en el propio panel o con `orca plugin shot`.
-
----
-
-## 🔐 Seguridad
-
-- **Solo lectura.** Nunca escribe en una bóveda; guarda la lista de bóvedas y, en la carpeta
-  `cache/` del plugin, una copia de las imágenes que muestra (hasta 200 MB).
-- **Solo las bóvedas añadidas.** El worker rechaza cualquier ruta que se salga de una, también
-  a través de un enlace simbólico.
-- **Nada sale del equipo.** No hace llamadas de red.
+- **Two parts.** The panel runs inside Orca, with no access to the disk; the worker runs in
+  Node and is the only part that reads the vaults. They talk through a contract in
+  `src/protocol.ts`.
+- **No build step.** Orca loads the `.ts` and `.tsx` files as they are; `node_modules` only
+  brings the development types.
+- **Read-only.** It never writes to a vault. It keeps the list of vaults and, in the plugin's
+  `cache/` folder, a copy of the images it shows (up to 200 MB).
+- **Only the added vaults.** The worker refuses any path that leaves one, symbolic links
+  included. It makes no network calls: nothing leaves the machine.
 
 ---
 
-## 🚀 Puesta en marcha
-
-Desde la carpeta del repositorio, con `node_modules` fuera:
+## 🚀 Getting started
 
 ```bash
-orca plugin install .
+orca plugin install moilolon/orca-obsidian-notes
 ```
 
-Orca enseña los permisos y el comando para aprobarlos. Después se abre el panel
-**Obsidian** en la barra lateral derecha y se elige la carpeta de la bóveda en los ajustes.
+Orca shows the access the plugin asks for and the command to approve it. Then open the
+**Obsidian** panel in the right sidebar and pick the vault's folder in its settings. To work on
+the plugin, install it from a clone with `orca plugin install .` (with `node_modules` left
+out), and again after each change: Orca installs a copy of the folder.
 
 ---
 

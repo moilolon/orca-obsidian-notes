@@ -1,62 +1,65 @@
-# Obsidian Notes para Orca — Memoria del proyecto
+# Obsidian Notes for Orca — Project Memory
 
-Plugin de Orca que muestra una bóveda de Obsidian en la barra lateral: un panel de componentes
-(`src/panel/`) y su worker de Node (`src/worker/`).
+Orca plugin that shows an Obsidian vault in the sidebar: a components panel (`src/panel/`) and
+its Node worker (`src/worker/`).
 
-`README.md` es la portada, con el formato de todos los repos de moilolon: *Qué es*, *Cómo
-funciona*, *Puesta en marcha* y el pie común, sin árbol de carpetas, código largo ni roadmap. Lo
-de abajo es para Claude.
+`README.md` is the cover for visitors, laid out like every moilolon repo: *What this is*, *How
+it works*, *Getting started* and the shared footer, with no folder tree, long code or roadmap.
+The details below are for Claude.
 
-## Estructura
+## Structure
 
-- `orca-plugin.json`: manifiesto (panel, worker, icono y portada; permisos `trusted-worker` y
-  `storage:own`).
-- `src/protocol.ts`: el contrato entre panel y worker. El panel no puede importar módulos de
-  Node: todo lo que lee del disco se lo pide al worker.
-- `src/panel/`: `panel.tsx` (barra, árbol, búsqueda, bóvedas y la nota), `panel.check.ts` (los
-  escenarios de `orca plugin check`), `markdown.ts` (propiedades, comentarios, avisos, enlaces,
-  títulos y sus colores, tareas, que el panel dibuja con componentes porque el `Markdown` de Orca
-  les pone viñeta, y trozos de menos de 16 KiB) e `i18n.ts` (textos por idioma y códigos de
-  error del worker; un idioma nuevo es una tabla con todas las claves de la inglesa).
-- `src/worker/`: `worker.ts` (lee las bóvedas, las vigila con `fs.watch`, avisa al panel con
-  `notes.changed` y contesta; importa `markdown.ts` para los backlinks; copia las imágenes a
-  `cache/` del plugin instalado, porque el `Image` de Orca solo enseña ficheros del plugin y sí
-  sirve los que aparecen después de instalarlo), `vault.ts` (rutas
-  dentro de la bóveda, orden, resolución de enlaces, la URL de Obsidian) y `folder-picker.ts`
-  (PowerShell en Windows, `osascript` en macOS, `zenity` en Linux).
-- Cada módulo tiene sus tests al lado (`*.test.ts`, `*.test.tsx`).
-- `assets/draw-images.ps1` dibuja `icon.png` (el del plugin y el del proyecto en Orca), `cover.png`
-  (también la portada del plugin, por eso su texto va en inglés) y `social-preview.png` (la vista
-  previa de GitHub, que solo se sube si el repo es público) a partir de formas. Es la base común
-  de los repos de moilolon (`lib/draw-base.ps1` de workbench, que se copia tal cual) más la parte
-  propia; se guarda en UTF-8 con BOM.
+- `orca-plugin.json`: the manifest (panel, worker, icon and cover; access `trusted-worker` and
+  `storage:own`). The repo has the GitHub topic `orca-plugin`, so the Orca Community Plugins
+  catalog lists each version tag (`vX.Y.Z`) on its own; a listed version never changes.
+- `src/protocol.ts`: the contract between panel and worker. The panel cannot import Node
+  modules: everything it reads from disk it asks the worker for.
+- `src/panel/`: `panel.tsx` (toolbar, tree, search, vaults and the note), `panel.check.ts` (the
+  scenarios of `orca plugin check`), `markdown.ts` (properties, comments, callouts, links,
+  headings and their colors, tasks, which the panel draws with components because Orca's
+  `Markdown` gives them a bullet, and pieces under 16 KiB) and `i18n.ts` (texts per language and
+  the worker's error codes; a new language is a table with every key of the English one).
+- `src/worker/`: `worker.ts` (reads the vaults, watches them with `fs.watch`, tells the panel
+  with `notes.changed` and answers; imports `markdown.ts` for the backlinks; copies the images
+  to `cache/` of the installed plugin, because Orca's `Image` only shows the plugin's own files,
+  and it does serve those that appear after installing), `vault.ts` (paths inside the vault,
+  ordering, link resolution, the Obsidian URL) and `folder-picker.ts` (PowerShell on Windows,
+  `osascript` on macOS, `zenity` on Linux).
+- Each module has its tests next to it (`*.test.ts`, `*.test.tsx`).
+- `assets/draw-images.ps1` (`powershell -NoProfile -File assets/draw-images.ps1`) draws, from
+  shapes, `icon.png` (the plugin's and the project's icon in Orca), `cover.png` (also the
+  plugin's cover) and the GitHub social preview (`social-preview.png`, uploaded by hand in
+  Settings). The base is shared by every repo (the one in `moilolon/workbench`); only the repo's
+  own part changes here. It is saved as UTF-8 with BOM, or PowerShell 5.1 breaks the accents.
 
-## Desarrollo
+## Development
 
 ```bash
-npm install           # solo los tipos (TypeScript y @types/node)
-npm run typecheck     # tsc, sin generar nada
+npm install           # only the types (TypeScript and @types/node)
+npm run typecheck     # tsc, emitting nothing
 npm test              # orca plugin test .
-npm run check         # orca plugin check: dibuja cada escenario de panel.check.ts
-orca plugin dev watch . --check --shot .orca/shots   # recarga al guardar y saca capturas
-powershell -NoProfile -File assets/draw-images.ps1   # vuelve a dibujar icono, portada y vista previa
+npm run check         # orca plugin check: renders each scenario of panel.check.ts
+orca plugin dev watch . --check --shot .orca/shots   # reloads on save and takes shots
+powershell -NoProfile -File assets/draw-images.ps1   # redraws the icon, cover and preview
 ```
 
-Los tests pueden pasar con el panel en blanco: cada cambio se comprueba con `orca plugin shot`
-o en el propio panel.
+The tests can pass with a blank panel: check each change with `orca plugin shot` or in the
+panel itself.
 
 ## Git
 
-- **Commits:** en inglés, como el historial, en imperativo y con la primera letra en mayúscula.
-  Una línea de hasta 72 caracteres, sin prefijo ni punto final (`Center the section title in its
-  color band`). Cuerpo solo si el porqué no es obvio: línea en blanco y líneas de 72. Sin
-  `Co-Authored-By` ni otra atribución.
-- **Ramas:** `<tipo>/<descripción-corta>`, en minúsculas y kebab-case, desde `main`. Tipos:
-  `feature`, `bugfix`, `docs`, `refactor`, `chore`.
-- **Pull requests:** título como un commit; cuerpo en español con «Qué cambia», «Por qué» y
-  «Cómo comprobarlo». Se mergean por squash, con el título y el cuerpo del PR como commit.
-- **Tras un cambio de código**, el plugin instalado en Orca no se entera hasta reinstalarlo:
-  `README.md`, sección *Puesta en marcha*.
-- **`gh`:** siempre como `GH_TOKEN=$(gh auth token --user moilolon) gh …`, comando a comando. La
-  cuenta activa de `gh` es la del trabajo, que no ve este repo; no la cambies. `git` ya usa
-  `moilolon` por el `includeIf` de `C:/Developer/PERSONAL/`.
+- **Commits:** English, imperative, sentence case, one line of at most 72 characters with no
+  prefix and no trailing period (`Center the section title in its color band`). A body only
+  when the why is not obvious: a blank line, then lines wrapped at 72. No `Co-Authored-By` or
+  other attribution.
+- **Branches:** `<type>/<short-description>`, lowercase kebab-case, off `main`. Types: `feature`,
+  `bugfix`, `docs`, `refactor`, `chore`.
+- **Pull requests:** title like a commit; body with *What changes*, *Why* and *How to check it*.
+  Merged by squash, with the PR title and body as the commit.
+- **Versions:** a version bump is its own PR (`Bump the version to X.Y.Z`), then an annotated
+  tag `vX.Y.Z` on its commit and a GitHub release with the changes.
+- **After a code change**, the plugin installed in Orca does not see it until it is installed
+  again (`orca plugin install .` from the repo, with `node_modules` left out).
+- **`gh`:** always as `GH_TOKEN=$(gh auth token --user moilolon) gh …`, command by command. gh's
+  active account is the work one, which must not act on this repo; do not switch it. `git`
+  already uses `moilolon` through the `includeIf` of `C:/Developer/PERSONAL/`.
