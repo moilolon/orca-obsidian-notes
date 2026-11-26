@@ -47,7 +47,7 @@ The tests can pass with a blank panel: check each change with `orca plugin shot`
 panel itself.
 
 `.github/workflows/checks.yml` runs the types, the tests and `orca plugin check` on every pull
-request (Dependabot's too) with the Orca CLI of the latest release (its Linux server build). The
+request (Dependabot's too) with the Orca CLI of the latest release (its Linux package). The
 job is `checks`, the status the `main` ruleset requires.
 
 ## Git

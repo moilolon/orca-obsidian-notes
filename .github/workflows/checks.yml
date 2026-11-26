@@ -1,8 +1,9 @@
 name: checks
 
 # The checks a pull request must pass (Dependabot's too): the types, the tests and the panel
-# rendered once. They run on the Orca CLI of the latest release, the one users update to; its
-# Linux server build carries the CLI and the plugin runtime with no desktop app.
+# rendered once. They run on the Orca CLI of the latest release, the one users update to: its
+# Linux package carries the CLI, the plugin runtime and the typings (the server build has no
+# typings), checked against the sha256 digest GitHub keeps for the asset.
 on:
   pull_request:
   push:
@@ -30,12 +31,16 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           cd "$RUNNER_TEMP"
-          gh release download --repo stablyai/orca \
-            --pattern orca-server-linux-x64.tar.gz --pattern orca-server-sha256sums.txt
-          grep ' orca-server-linux-x64.tar.gz$' orca-server-sha256sums.txt | sha256sum --check -
-          mkdir orca && tar xzf orca-server-linux-x64.tar.gz --strip-components=1 -C orca
-          mkdir bin && ln -s "$RUNNER_TEMP/orca/bin/orca-ide" bin/orca
+          tag=$(gh api repos/stablyai/orca/releases/latest --jq .tag_name)
+          asset="orca-ide_${tag#v}_amd64.deb"
+          digest=$(gh api "repos/stablyai/orca/releases/tags/$tag" --jq ".assets[] | select(.name == \"$asset\") | .digest")
+          gh release download "$tag" --repo stablyai/orca --pattern "$asset"
+          echo "${digest#sha256:}  $asset" | sha256sum --check -
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq --no-install-recommends "./$asset"
+          mkdir bin && ln -s /opt/Orca/resources/bin/orca-ide bin/orca
           echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
+          bin/orca --version
 
       - run: orca plugin types .
       - run: npm ci
