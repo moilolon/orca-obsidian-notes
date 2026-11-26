@@ -36,7 +36,7 @@ import {
   type TreeItem
 } from 'orca'
 import { format, messagesFor, WORKER_ERRORS, type MessageKey } from './i18n'
-import { folderCrumbs, frontMatterProperties, noteLinks, noteSegments, sectionTones, splitTags, splitTitle, type NoteLink, type Property, type SectionTone, type Segment } from './markdown'
+import { folderCrumbs, frontMatterProperties, noteLinks, noteSegments, sectionTones, splitTags, splitTitle, type NoteLink, type Property, type SectionTone, type Segment, type TaskStatus } from './markdown'
 import type { NoteFile } from '../protocol'
 
 type View = 'notes' | 'search' | 'vaults' | 'reading'
@@ -50,6 +50,8 @@ const PICKER_TIMEOUT_MS = 120000
 const ADD_VAULT_WIDTH = 420
 
 const vaults = atom<string[]>([])
+/** False until the worker has answered with the vault list: until then, no "add a vault". */
+const vaultsLoaded = atom(false)
 const vault = atom('vault', '', { persist: 'plugin' })
 const lastNote = atom('lastNote', '', { persist: 'plugin' })
 const view = atom<View>('notes')
@@ -250,7 +252,7 @@ export function setup(ctx: PanelContext): void {
     })
   )
   void guarded(async () => {
-    const answer = await plugin.request('vaults.list')
+    const answer = await plugin.request('vaults.list').finally(() => set(vaultsLoaded, true))
     set(vaults, answer.vaults)
     if (!answer.vaults.length) return set(view, 'vaults')
     if (!answer.vaults.includes(read(vault))) set(vault, answer.vaults[0])
@@ -415,9 +417,37 @@ function ImageView(segment: Extract<Segment, { kind: 'image' }>) {
   return <Image src={src} alt={segment.alt} size="full" fit="contain" rounded />
 }
 
+/** The box each task status shows. */
+const TASK_BOXES: Record<TaskStatus, string> = { todo: '⬜', done: '✅', cancelled: '❌', doing: '🔄' }
+/** As wide as the bullet column of Orca's Markdown lists, so a task's text lines up with theirs. */
+const TASK_BOX_WIDTH = 22
+
+/**
+ * Tasks a line each: the box in a column as wide as a list bullet's, the text beside it, nested
+ * tasks one column further in. Done and cancelled tasks are struck through, as Obsidian shows them.
+ */
+function TasksView(segment: Extract<Segment, { kind: 'tasks' }>) {
+  return (
+    <Stack gap="xs">
+      {segment.items.map((task) => (
+        <Box direction="row" align="start">
+          {task.level ? <Box width={task.level * TASK_BOX_WIDTH} shrink={false} /> : null}
+          <Box width={TASK_BOX_WIDTH} shrink={false} align="center">
+            <Text>{TASK_BOXES[task.status]}</Text>
+          </Box>
+          <Box grow>
+            <Markdown content={task.status === 'done' || task.status === 'cancelled' ? `~~${task.text}~~` : task.text} />
+          </Box>
+        </Box>
+      ))}
+    </Stack>
+  )
+}
+
 function SegmentView(segment: Segment, tone: SectionTone) {
   if (segment.kind === 'markdown') return <Markdown content={segment.text} />
   if (segment.kind === 'image') return ImageView(segment)
+  if (segment.kind === 'tasks') return TasksView(segment)
   if (segment.kind === 'heading') return HeadingView(segment, tone)
   return (
     <Callout tone={segment.tone} title={segment.title}>
@@ -498,10 +528,7 @@ function ReadingView() {
           <Stack gap="sm">
             <Separator />
             {open.links.length ? (
-              <Stack gap="xs">
-                <Text muted size="xs" weight="medium">{text('links')}</Text>
-                <Row gap="xs" wrap>{open.links.map(LinkButton)}</Row>
-              </Stack>
+              <Row gap="xs" wrap>{open.links.map(LinkButton)}</Row>
             ) : null}
             {linkedFrom.length ? (
               <Stack gap="xs">
@@ -535,6 +562,11 @@ export default function Panel() {
   const current = read(view)
   const list = read(vaults)
   const open = read(note)
+  // Coming back to the panel reads the vault list again: wait for it rather than flash the
+  // add-a-vault page.
+  if (!read(vaultsLoaded)) {
+    return read(problem) ? <Callout tone="danger" title={text('errorTitle')}>{read(problem)}</Callout> : <Spinner label={text('readingVault')} />
+  }
   // Until there is a vault, the only thing to do is add one: no toolbar to distract from it.
   if (list.length === 0) {
     return (

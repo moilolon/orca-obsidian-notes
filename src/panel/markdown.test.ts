@@ -1,5 +1,5 @@
 import { assert, test } from 'orca/testing'
-import { chunkMarkdown, folderCrumbs, imageOnLine, splitTags, splitTitle, fenceAfter, frontMatterProperties, joinNotePath, noteLinks, noteSegments, replaceWikilinks, sectionTones, stripComments, stripFrontMatter, utf8Length } from './markdown'
+import { chunkMarkdown, folderCrumbs, imageOnLine, splitTags, splitTitle, fenceAfter, frontMatterProperties, joinNotePath, noteLinks, noteSegments, replaceWikilinks, sectionTones, stripComments, stripFrontMatter, taskOnLine, utf8Length } from './markdown'
 
 test('drops the YAML front matter and keeps the body', () => {
   assert.equal(stripFrontMatter('---\ntags:\n  - todo\n---\n# TODO\n'), '# TODO\n')
@@ -173,4 +173,20 @@ test('takes the opening # heading as the title, or the file name', () => {
 test('splits the tags from the other properties', () => {
   const properties = frontMatterProperties('---\ntags: [a, "#b"]\ntag: c d\nestado: x\n---\n')
   assert.deepEqual(splitTags(properties), { tags: ['a', 'b', 'c', 'd'], others: [{ label: 'estado', value: 'x', values: ['x'] }] })
+})
+
+test('reads a task line: its level, status and text', () => {
+  assert.deepEqual(taskOnLine('- [ ] Buy'), { level: 0, status: 'todo', text: 'Buy' })
+  assert.deepEqual(taskOnLine('\t* [x] Done'), { level: 1, status: 'done', text: 'Done' })
+  assert.deepEqual(taskOnLine('    - [-] Dropped'), { level: 2, status: 'cancelled', text: 'Dropped' })
+  assert.deepEqual(taskOnLine('- [?] Odd'), { level: 0, status: 'todo', text: 'Odd' })
+  assert.equal(taskOnLine('- plain'), null)
+})
+
+test('makes tasks in a row one segment, apart from the prose, their links as bold text', () => {
+  assert.deepEqual(noteSegments('Intro\n- [ ] One [[A]]\n\n- [/] Two\nAfter'), [
+    { kind: 'markdown', text: 'Intro' },
+    { kind: 'tasks', items: [{ level: 0, status: 'todo', text: 'One **A**' }, { level: 0, status: 'doing', text: 'Two' }] },
+    { kind: 'markdown', text: 'After' }
+  ])
 })

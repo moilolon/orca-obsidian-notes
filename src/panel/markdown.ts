@@ -11,6 +11,14 @@ export type Segment =
   | { kind: 'callout'; tone: CalloutTone; title: string; text: string }
   /** An image on a line of its own: `target` is a file name or a vault path, for the worker. */
   | { kind: 'image'; target: string; alt: string }
+  /** Task lines in a row, which the panel draws itself: Orca's Markdown adds a bullet to each. */
+  | { kind: 'tasks'; items: Task[] }
+
+/** Obsidian's task statuses: `[ ]`, `[x]`, `[-]` and `[/]`; any other mark is still to do. */
+export type TaskStatus = 'todo' | 'done' | 'cancelled' | 'doing'
+
+/** A task line: how deep it is nested (0 at the left), its status and its text as Markdown. */
+export type Task = { level: number; status: TaskStatus; text: string }
 
 /** The image files the panel shows in a note, by extension. */
 export const IMAGE_EXTENSIONS = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'bmp', 'avif']
@@ -71,6 +79,21 @@ const CALLOUT_START = /^>\s*\[!([A-Za-z-]+)\][+-]?\s*(.*)$/
 const QUOTE_LINE = /^>\s?/
 const FENCE = /^\s*(`{3,}|~{3,})(.*)$/
 const HEADING = /^(#{1,6})\s+(.*?)\s*#*\s*$/
+/** `- [ ] task`, any bullet and indent. */
+const TASK = /^([ \t]*)[-*+]\s+\[(.)\]\s+(.*)$/
+const TASK_STATUSES: Record<string, TaskStatus> = { x: 'done', X: 'done', '-': 'cancelled', '/': 'doing' }
+
+/** A task line's level (a tab or two spaces each), status and text; null for any other line. */
+export function taskOnLine(line: string): Task | null {
+  const task = TASK.exec(line)
+  if (!task) return null
+  return {
+    level: Math.floor(task[1].replace(/\t/g, '  ').length / 2),
+    status: TASK_STATUSES[task[2]] || 'todo',
+    text: task[3].trim()
+  }
+}
+
 const TABLE_LINE = /^\s*\|/
 const TABLE_RULE = /^\s*\|?\s*:?-{3,}/
 /** Inline Markdown a plain-text heading cannot show: emphasis, code and link brackets. */
@@ -467,7 +490,15 @@ export function noteSegments(text: string, notePath: string = ''): Segment[] {
     }
     const start = CALLOUT_START.exec(line)
     if (!start) {
-      pending.push(line)
+      const task = taskOnLine(line)
+      if (!task) {
+        pending.push(line)
+        continue
+      }
+      flushMarkdown()
+      const last = segments[segments.length - 1]
+      if (last && last.kind === 'tasks') last.items.push(task)
+      else segments.push({ kind: 'tasks', items: [task] })
       continue
     }
     flushMarkdown()
