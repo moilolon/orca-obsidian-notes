@@ -1,6 +1,6 @@
 // Runs src/worker/worker.ts's activate(orca) over a mock host and a real temporary vault on disk.
 import { assert, mockHost, mountWorker, test } from 'orca/testing'
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import * as main from './worker'
@@ -24,8 +24,12 @@ test('adds a vault, lists its tree and reads a note', async () => {
   try {
     const worker = await mountWorker(main, { host: mockHost() })
     assert.deepEqual(await worker.request('vaults.add', { path: root }), { vaults: [root], added: root })
-    // Adding it again keeps one entry and answers the stored spelling.
-    assert.deepEqual(await worker.request('vaults.add', { path: root.toUpperCase() }), { vaults: [root], added: root })
+    // Adding it again keeps one entry and answers the stored spelling, also in another case where
+    // the file system ignores case (Windows, macOS; on Linux that would be another folder).
+    assert.deepEqual(await worker.request('vaults.add', { path: root }), { vaults: [root], added: root })
+    if (existsSync(root.toUpperCase())) {
+      assert.deepEqual(await worker.request('vaults.add', { path: root.toUpperCase() }), { vaults: [root], added: root })
+    }
 
     const { items, truncated, limit } = await worker.request('notes.tree', { vault: root })
     assert.equal(truncated, false)
