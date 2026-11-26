@@ -11,7 +11,7 @@
   "icon": "assets/icon.png",
   "cover": {
     "path": "assets/cover.png",
-    "alt": "The plugin name beside a sidebar panel showing a note whose sections open on colored bands"
+    "alt": "The plugin name beside a sidebar panel showing a note with its tags, colored section bands, an image and the notes that link to it"
   },
   "engines": {
     "orca": ">=1.4.246"

@@ -8,7 +8,7 @@
 [![Sin compilación](https://img.shields.io/badge/TypeScript-sin%20compilaci%C3%B3n-3178C6?style=for-the-badge&logo=typescript&logoColor=white)](#-cómo-funciona)
 [![Obsidian](https://img.shields.io/badge/Lee-bóvedas%20de%20Obsidian-7C3AED?style=for-the-badge&logo=obsidian&logoColor=white)](https://obsidian.md/)
 
-<img src="assets/cover.png" alt="El nombre del plugin junto a un panel lateral con una nota cuyas secciones abren con bandas de color" width="820">
+<img src="assets/cover.png" alt="El nombre del plugin junto a un panel lateral con una nota: sus etiquetas, secciones con bandas de color, una imagen y las notas que la enlazan" width="820">
 
 </div>
 
