@@ -1,15 +1,11 @@
 import { assert, test } from 'orca/testing'
-import { chunkMarkdown, noteSegments, replaceWikilinks, sectionTones, stripFrontMatter, wikilinkTargets } from './markdown'
+import { chunkMarkdown, folderCrumbs, imageOnLine, splitTags, splitTitle, fenceAfter, frontMatterProperties, joinNotePath, noteLinks, noteSegments, replaceWikilinks, sectionTones, stripComments, stripFrontMatter, utf8Length } from './markdown'
 
 test('drops the YAML front matter and keeps the body', () => {
   assert.equal(stripFrontMatter('---\ntags:\n  - todo\n---\n# TODO\n'), '# TODO\n')
   assert.equal(stripFrontMatter('# No front matter\n---\n'), '# No front matter\n---\n')
 })
 
-test('lists each linked note once, leaving embeds out', () => {
-  const text = 'See [[Release (GLCG-16693)]], [[Notas/TODO|the todo]] and [[Release (GLCG-16693)#Scope]]. ![[diagram.png]]'
-  assert.deepEqual(wikilinkTargets(text), ['Release (GLCG-16693)', 'Notas/TODO'])
-})
 
 test('shows wikilinks as bold text and embeds as a note', () => {
   assert.equal(replaceWikilinks('[[A]] [[B|bee]] [[C#Part]] ![[pic.png]]'), '**A** **bee** **C#Part** *(pic.png)*')
@@ -64,4 +60,117 @@ test('gives each section the next color and its subsections the same one', () =>
     .filter(({ segment }) => segment.kind === 'heading')
     .map(({ segment, tone }) => `${segment.kind === 'heading' ? segment.text : ''}:${tone}`)
   assert.deepEqual(headings, ['Title:accent', 'One:accent', 'One.a:accent', 'Two:success', 'Three:warning', 'Four:danger', 'Five:accent'])
+})
+
+test('lists each linked note once, Markdown links by their vault path, leaving embeds and code out', () => {
+  const text = [
+    'See [[Release (GLCG-16693)]], [[Notas/TODO|the todo]] and [[Release (GLCG-16693)#Scope]]. ![[diagram.png]]',
+    'Also [the plan](../Plans/Q1%20plan.md#Goals), [web](https://example.com/x.md) and [pic](a.png).',
+    '`[[In code]]` %% [[In a comment]] %%',
+    '```',
+    '[[In a fence]]',
+    '```'
+  ].join('\n')
+  assert.deepEqual(noteLinks(text, 'Notas/TODO.md'), [
+    { label: 'Release (GLCG-16693)', target: 'Release (GLCG-16693)' },
+    { label: 'Notas/TODO', target: 'Notas/TODO' },
+    { label: 'the plan', target: 'Plans/Q1 plan.md' }
+  ])
+})
+
+test('joins a Markdown link to the note it is written in', () => {
+  assert.equal(joinNotePath('A/B/note.md', 'other.md'), 'A/B/other.md')
+  assert.equal(joinNotePath('A/B/note.md', './../C/x.md'), 'A/C/x.md')
+  assert.equal(joinNotePath('A/B/note.md', '/Top.md'), 'Top.md')
+})
+
+test('shows note links as bold text, but leaves code and web links as they are', () => {
+  const segments = noteSegments('[[A]] and [b](B.md) and [web](https://x.y) and `[[code]]`\n```\n[[fenced]]\n```')
+  assert.deepEqual(segments, [{ kind: 'markdown', text: '**A** and **b** and [web](https://x.y) and `[[code]]`\n```\n[[fenced]]\n```' }])
+})
+
+test('hides Obsidian comments, inline and over several lines, but not inside code', () => {
+  assert.equal(stripComments('Keep %%hidden%% this\n%%\nall\nof this\n%%\nAfter\n```\n%% code %%\n```'), 'Keep  this\nAfter\n```\n%% code %%\n```')
+})
+
+test('reads the front matter as properties', () => {
+  const text = '---\ntags:\n  - todo\n  - "work"\nstatus: open\naliases: [One, Two]\nempty:\nup: "[[Index|Home]]"\nnested:\n  key: value\n---\nBody'
+  assert.deepEqual(frontMatterProperties(text), [
+    { label: 'tags', value: 'todo, work', values: ['todo', 'work'] },
+    { label: 'status', value: 'open', values: ['open'] },
+    { label: 'aliases', value: 'One, Two', values: ['One', 'Two'] },
+    { label: 'up', value: 'Home', values: ['Home'] }
+  ])
+  assert.deepEqual(frontMatterProperties('No front matter'), [])
+})
+
+test('keeps a callout title plain text, its links included', () => {
+  const [callout] = noteSegments('> [!note] See [[Other]]\n> Body')
+  assert.equal(callout.kind === 'callout' && callout.title, 'See Other')
+})
+
+test('cuts a long block with no blank line under the byte limit, repeating a table header', () => {
+  const rows = Array.from({ length: 40 }, (_, i) => `| row ${i} | ${'á'.repeat(20)} |`)
+  const text = ['| Name | Value |', '| --- | --- |', ...rows].join('\n')
+  const chunks = chunkMarkdown(text, 50, 400)
+  assert.ok(chunks.length > 1)
+  for (const chunk of chunks) {
+    assert.ok(utf8Length(chunk) <= 400 + 32, `${utf8Length(chunk)} bytes`)
+    assert.ok(chunk.startsWith('| Name | Value |\n| --- | --- |'), chunk.slice(0, 40))
+  }
+})
+
+test('closes and reopens a code fence cut for size', () => {
+  const text = ['```ts', ...Array.from({ length: 30 }, (_, i) => `const line${i} = ${i}`), '```'].join('\n')
+  const chunks = chunkMarkdown(text, 50, 200)
+  assert.ok(chunks.length > 1)
+  for (const chunk of chunks) {
+    assert.ok(chunk.startsWith('```ts'), chunk)
+    assert.ok(chunk.trimEnd().endsWith('```'), chunk)
+  }
+})
+
+test('counts UTF-8 bytes as Orca does', () => {
+  assert.equal(utf8Length('aá€😀'), 1 + 2 + 3 + 4)
+})
+
+test('a fence closes only with its own marker', () => {
+  assert.equal(fenceAfter('```', null), '```')
+  assert.equal(fenceAfter('~~~', '```'), '```')
+  assert.equal(fenceAfter('````', '```'), null)
+  assert.equal(fenceAfter('```js', '```'), '```')
+})
+
+test('makes an image on a line of its own a segment, by name or by its path from the note', () => {
+  const segments = noteSegments('Before\n![[pic.png|300]]\n![The plan](../img/plan%201.jpg)\nInline ![[pic.png]] stays\n![[Other note]]\n![web](https://x.y/a.png)', 'Notas/TODO.md')
+  assert.deepEqual(segments, [
+    { kind: 'markdown', text: 'Before' },
+    { kind: 'image', target: 'pic.png', alt: 'pic.png' },
+    { kind: 'image', target: 'img/plan 1.jpg', alt: 'The plan' },
+    { kind: 'markdown', text: 'Inline *(pic.png)* stays\n*(Other note)*\n![web](https://x.y/a.png)' }
+  ])
+})
+
+test('reads an image caption, but not a width, as its alt text', () => {
+  assert.deepEqual(imageOnLine('![[a/pic.webp|Our logo]]', 'x.md'), { target: 'a/pic.webp', alt: 'Our logo' })
+  assert.equal(imageOnLine('![[notes.pdf]]', 'x.md'), null)
+})
+
+test('lists the folders a note sits in, outermost first', () => {
+  assert.deepEqual(folderCrumbs('Guess/Notas/TODO.md'), [
+    { label: 'Guess', path: 'Guess' },
+    { label: 'Notas', path: 'Guess/Notas' }
+  ])
+  assert.deepEqual(folderCrumbs('Top.md'), [])
+})
+
+test('takes the opening # heading as the title, or the file name', () => {
+  const segments = noteSegments('# Mi lista\n\nText')
+  assert.deepEqual(splitTitle(segments, 'TODO'), { title: 'Mi lista', body: [{ kind: 'markdown', text: '\nText' }] })
+  assert.equal(splitTitle(noteSegments('Text\n# Later'), 'TODO').title, 'TODO')
+})
+
+test('splits the tags from the other properties', () => {
+  const properties = frontMatterProperties('---\ntags: [a, "#b"]\ntag: c d\nestado: x\n---\n')
+  assert.deepEqual(splitTags(properties), { tags: ['a', 'b', 'c', 'd'], others: [{ label: 'estado', value: 'x', values: ['x'] }] })
 })

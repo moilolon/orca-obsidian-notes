@@ -1,14 +1,14 @@
 // `orca plugin test .` runs this in Node with the same runtime and checks Orca uses.
-import { assert, mockHost, mount, test } from 'orca/testing'
+import { assert, hostError, mockHost, mount, test } from 'orca/testing'
 import * as panel from './panel'
 
 const VAULT = 'C:\\vault'
-const NOTES = {
-  'Notas/TODO.md': '---\ntags:\n  - todo\n---\n# TODO\n\n- One\n    - Nested\n\n> [!warning] Careful\n> Only one client.\n\nSee [[Release]].\n',
+const NOTES: Record<string, string> = {
+  'Notas/TODO.md': '---\ntags:\n  - todo\n---\n# TODO\n\n- One\n    - Nested\n\n> [!warning] Careful\n> Only one client.\n\nSee [[Release]] and [[Missing]].\n',
   'Notas/Release.md': '# Release\n'
 }
 
-function host(vaults: string[] = [VAULT]) {
+function host(vaults: string[] = [VAULT], notes: Record<string, string> = NOTES) {
   return mockHost({
     requests: {
       'vaults.list': () => ({ vaults }),
@@ -16,11 +16,16 @@ function host(vaults: string[] = [VAULT]) {
       'vaults.pick': () => ({ vaults: [...vaults, 'C:\\picked'], added: 'C:\\picked' }),
       'notes.tree': () => ({
         truncated: false,
+        limit: 4000,
         items: [{ key: 'Notas', label: 'Notas', icon: 'folder', children: [{ key: 'Notas/Release.md', label: 'Release' }, { key: 'Notas/TODO.md', label: 'TODO' }] }]
       }),
-      'notes.read': ({ path }) => ({ path, title: path.split('/').pop()!.replace('.md', ''), text: NOTES[path as keyof typeof NOTES] }),
-      'notes.resolve': ({ target }) => ({ path: `Notas/${target}.md` }),
-      'notes.search': () => ({ results: [{ path: 'Notas/Release.md', name: 'Release' }] }),
+      'notes.read': ({ path }) => {
+        if (!(path in notes)) throw hostError('invalid_params', 'note_missing')
+        return { path, title: path.split('/').pop()!.replace('.md', ''), text: notes[path] }
+      },
+      'notes.resolve': ({ targets }) => ({ paths: targets.map((target) => (`Notas/${target}.md` in notes ? `Notas/${target}.md` : null)) }),
+      'notes.backlinks': ({ path }) => ({ results: path === 'Notas/Release.md' ? [{ path: 'Notas/TODO.md', name: 'TODO' }] : [] }),
+      'notes.search': () => ({ results: [{ path: 'Notas/Release.md', name: 'Release', snippet: '…Tags and builds…' }], truncated: true }),
       'notes.openInObsidian': () => ({ opened: true })
     }
   })
@@ -52,14 +57,21 @@ test('adds the folder picked in the system dialog and shows its notes', async ()
   await view.unmount()
 })
 
-test('opens a note from the tree over the whole panel, with its callout and links', async () => {
+test('opens a note from the tree over the whole panel, with its properties, callout and links', async () => {
   const view = await mount(panel, { host: host(), locale: 'en' })
   await view.selectItem({ label: 'Notes tree' }, 'Notas/TODO.md')
   const summary = view.summary().join(' | ')
   assert.ok(summary.includes('Careful'), summary)
+  assert.ok(view.find({ text: '#todo' }), summary)
   assert.equal(view.find({ label: 'Notes tree' }), null)
+  // A link to no note is drawn, but cannot be pressed.
+  assert.equal(view.find({ text: 'Missing' })?.disabled, true)
   await view.press({ text: 'Release' })
-  assert.ok(view.find({ text: 'Notas/Release.md' }))
+  await view.settled()
+  assert.ok(view.find({ type: 'Heading', text: 'Release' }))
+  // Release is linked from TODO: its backlink leads back.
+  await view.press({ text: 'TODO' })
+  assert.ok(view.find({ type: 'Heading', text: 'TODO' }))
   assert.deepEqual(view.errors, [])
   assert.deepEqual(view.refusals, [])
   await view.unmount()
@@ -67,7 +79,74 @@ test('opens a note from the tree over the whole panel, with its callout and link
 
 test('reopens the last note when the panel opens again', async () => {
   const view = await mount(panel, { host: host(), persisted: { plugin: { vault: VAULT, lastNote: 'Notas/Release.md' } } })
-  assert.ok(view.find({ text: 'Notas/Release.md' }))
+  assert.ok(view.find({ type: 'Heading', text: 'Release' }))
+  await view.unmount()
+})
+
+test('starts from the tree, with no error, when the last note is gone', async () => {
+  const view = await mount(panel, { host: host(), locale: 'en', persisted: { plugin: { vault: VAULT, lastNote: 'Notas/Gone.md' } } })
+  await view.settled()
+  assert.ok(view.find({ label: 'Notes tree' }), view.summary().join(' | '))
+  assert.equal(view.find({ text: 'Something went wrong' }), null)
+  assert.equal(view.persisted.plugin.lastNote, '')
+  await view.unmount()
+})
+
+test('shows the error, not an endless spinner, when the tree cannot be read', async () => {
+  const failing = mockHost({
+    requests: {
+      'vaults.list': () => ({ vaults: [VAULT] }),
+      'notes.tree': () => {
+        throw hostError('invalid_params', 'not_a_vault')
+      }
+    }
+  })
+  const view = await mount(panel, { host: failing, locale: 'en' })
+  await view.settled()
+  assert.ok(view.find({ text: /That folder is not in the vault list/ }), view.summary().join(' | '))
+  assert.equal(view.find({ label: 'Reading the vault' }), null)
+  assert.equal(view.find({ label: 'No notes' }), null)
+  await view.unmount()
+})
+
+test('follows a change on disk: the open note is read again', async () => {
+  const notes = { ...NOTES }
+  const view = await mount(panel, { host: host([VAULT], notes), locale: 'en', persisted: { plugin: { vault: VAULT, lastNote: 'Notas/Release.md' } } })
+  notes['Notas/Release.md'] = '# Release\nShipped on Friday.\n'
+  await view.post('notes.changed', { vault: VAULT })
+  await view.settled()
+  assert.ok(view.find({ text: /Shipped on Friday/ }), view.summary().join(' | '))
+  await view.unmount()
+})
+
+test('shows where each search hit matched and says when the list is cut', async () => {
+  const view = await mount(panel, { host: host(), locale: 'en' })
+  await view.press({ label: 'Search' })
+  await view.type({ label: 'Search', type: 'Input' }, 'builds', { submit: true })
+  assert.ok(view.find({ text: '…Tags and builds…' }), view.summary().join(' | '))
+  assert.ok(view.find({ text: 'Only the first 1 results are shown.' }))
+  await view.unmount()
+})
+
+test('draws an image of the note from the copy the worker made, and names one it could not', async () => {
+  const notes: Record<string, string> = { ...NOTES, 'Notas/Release.md': '# Release\n![[pic.png]]\n![[huge.png]]\n' }
+  const view = await mount(panel, {
+    host: mockHost({
+      requests: {
+        'vaults.list': () => ({ vaults: [VAULT] }),
+        'notes.tree': () => ({ truncated: false, limit: 4000, items: [] }),
+        'notes.read': ({ path }) => ({ path, title: 'Release', text: notes[path] }),
+        'notes.backlinks': () => ({ results: [] }),
+        'notes.image': ({ target }) => ({ src: target === 'pic.png' ? 'cache/abc.png' : null })
+      }
+    }),
+    locale: 'en',
+    persisted: { plugin: { vault: VAULT, lastNote: 'Notas/Release.md' } }
+  })
+  await view.settled()
+  assert.equal(view.find({ type: 'Image' })?.props.src, 'cache/abc.png')
+  assert.ok(view.find({ text: '(huge.png)' }), view.summary().join(' | '))
+  assert.deepEqual(view.warnings, [])
   await view.unmount()
 })
 
@@ -80,5 +159,25 @@ test('lists the vaults with a button to open each and one to remove it', async (
   await view.press({ label: 'Use other' })
   assert.deepEqual(view.errors, [])
   assert.equal(view.persisted.plugin.vault, other)
+  await view.unmount()
+})
+
+test('heads the note with its folders, its title once and its tags; other properties fold away', async () => {
+  const notes: Record<string, string> = {
+    'Notas/TODO.md': '---\ntags: [todo, "#work"]\nestado: abierta\n---\n# Mi lista\n\n## Hoy\nAlgo\n'
+  }
+  const testHost = host([VAULT], notes)
+  const view = await mount(panel, { host: testHost, locale: 'en', persisted: { plugin: { vault: VAULT, lastNote: 'Notas/TODO.md' } } })
+  await view.settled()
+  assert.equal(view.findAll({ type: 'Heading', text: 'Mi lista' }).length, 1)
+  assert.ok(view.find({ text: '#todo' }) && view.find({ text: '#work' }))
+  assert.ok(view.find({ label: 'Properties (1)' }), view.summary().join(' | '))
+  assert.equal(view.find({ text: 'Notas/TODO.md' }), null)
+  assert.deepEqual(view.warnings, [])
+  assert.deepEqual(view.errors, [])
+  // A folder of the path opens the notes tree, unfolded down to it.
+  await view.press({ text: 'Notas' })
+  assert.ok(view.find({ label: 'Notes tree' }), view.summary().join(' | '))
+  assert.deepEqual(view.expandedOf({ label: 'Notes tree' }), ['Notas'])
   await view.unmount()
 })
