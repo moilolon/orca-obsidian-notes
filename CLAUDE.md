@@ -58,7 +58,8 @@ job is `checks`, the status the `main` ruleset requires.
   other attribution.
 - **Branches:** `<type>/<short-description>`, lowercase kebab-case, off `main`. Types: `feature`,
   `bugfix`, `docs`, `refactor`, `chore`.
-- **Pull requests:** title like a commit; body with *What changes*, *Why* and *How to check it*.
+- **Pull requests:** title like a commit; body with *What changes*, *Why* and *How to check it*;
+  assigned to `moilolon` (the labeler workflow does it if missing, and Dependabot's come assigned).
   Merged by squash, with the PR title and body as the commit.
 - **Versions:** a version bump is its own PR (`Bump the version to X.Y.Z`), then an annotated
   tag `vX.Y.Z` on its commit and a GitHub release with the changes. Check that `main` already
