@@ -197,7 +197,11 @@ function VaultsView() {
     <Stack gap="lg">
       <List label={text('vaultList')}>
         {list.map((path) => (
-          <ListItem title={folderName(path)} description={path} icon="folder" current={path === read(vault)} onPress={() => guarded(() => switchVault(path))}>
+          // A pressable row cannot hold other controls in Orca, so opening a vault is a button too.
+          <ListItem title={folderName(path)} description={path} icon="folder" current={path === read(vault)}>
+            {path === read(vault) ? null : (
+              <IconButton icon="check" label={text('useVault', { name: folderName(path) })} tooltip={text('useVaultTooltip')} variant="ghost" size="xs" onPress={() => guarded(() => switchVault(path))} />
+            )}
             <IconButton icon="remove" label={text('removeVault', { name: folderName(path) })} tooltip={text('removeVaultTooltip')} variant="ghost" size="xs" onPress={() => guarded(() => removeVault(path))} />
           </ListItem>
         ))}
