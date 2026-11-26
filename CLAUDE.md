@@ -60,10 +60,11 @@ panel itself.
   tag `vX.Y.Z` on its commit and a GitHub release with the changes. Check that `main` already
   has the new version before tagging: the catalog never accepts a moved tag. The Orca
   Community Plugins catalog lists the tag on its next run, as `moilolon.notes`.
-- **After a code change**, the plugin installed in Orca (`local.notes`, from this folder) does
-  not see it until it is installed again (`orca plugin install .` from `main`, with
-  `node_modules` left out). Do not install `moilolon.notes` next to it: Orca would show two
-  *Obsidian* panels.
+- **In Orca**, the plugin runs from this folder as a development plugin (`orca plugin dev load .`,
+  `local.notes`): Orca reloads it on every file change, so what the main checkout has, its
+  branch and its uncommitted edits, is what runs; nothing needs reinstalling. New access needs a
+  new approval. Do not install `moilolon.notes` next to it: Orca would show two *Obsidian*
+  panels.
 - **`gh`:** always as `GH_TOKEN=$(gh auth token --user moilolon) gh …`, command by command. gh's
   active account is the work one, which must not act on this repo; do not switch it. `git`
   already uses `moilolon` through the `includeIf` of `C:/Developer/PERSONAL/`.
