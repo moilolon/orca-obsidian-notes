@@ -65,6 +65,81 @@ function Draw-Note($g, [float]$x, [float]$y, [float]$w, [float]$h, [float]$scale
   }
 }
 
+function Fill-Bar($g, $color, [float]$x, [float]$y, [float]$w, [float]$h) {
+  Fill-Rounded $g $color $x $y $w $h ($h / 2)
+}
+
+# The note as the panel shows it: the head (folders, title, tags), a section, an image, another
+# section and the notes that link to it. Drawn in the cover's panel, 460x690 from ($x, $y).
+function Draw-CoverNote($g, [float]$x, [float]$y) {
+  $w = 460; $pad = 30; $inner = $w - 2 * $pad; $left = $x + $pad
+  Fill-Rounded $g $sheet $x $y $w 690 30
+  $light = [System.Drawing.Color]::FromArgb(255, 205, 211, 222)
+  $dim = [System.Drawing.Color]::FromArgb(255, 120, 128, 144)
+  $rule = [System.Drawing.Color]::FromArgb(255, 64, 70, 84)
+
+  # Head: the folders as links, the title, two tags, a rule.
+  $cx = $left
+  foreach ($crumb in @(78, 58, 64)) {
+    if ($cx -gt $left) { Fill-Rounded $g $dim ($cx) ($y + 32) 6 6 3; $cx += 16 }
+    Fill-Bar $g $bands[0] $cx ($y + 30) $crumb 10
+    $cx += $crumb + 10
+  }
+  Fill-Bar $g $light $left ($y + 60) 190 22
+  $tag = [System.Drawing.Color]::FromArgb(110, 122, 162, 247)
+  Fill-Bar $g $tag $left ($y + 98) 74 24
+  Fill-Bar $g $tag ($left + 86) ($y + 98) 92 24
+  $g.FillRectangle((New-Object System.Drawing.SolidBrush $rule), $left, $y + 140, $inner, 2)
+
+  # A section: its band and two lines.
+  Fill-Rounded $g $bands[0] $left ($y + 160) $inner 34 10
+  Fill-Bar $g $line $left ($y + 210) ($inner * 0.85) 12
+  Fill-Bar $g $line $left ($y + 234) ($inner * 0.6) 12
+
+  # An image of the vault, drawn in the note: sky, sun and two hills.
+  $imgY = $y + 266; $imgH = 170
+  $sky = New-Object System.Drawing.Drawing2D.LinearGradientBrush((New-Object System.Drawing.PointF $left, $imgY), (New-Object System.Drawing.PointF $left, ($imgY + $imgH)), [System.Drawing.Color]::FromArgb(255, 70, 96, 160), [System.Drawing.Color]::FromArgb(255, 40, 52, 86))
+  $frame = New-RoundedPath $left $imgY $inner $imgH 14
+  $g.FillPath($sky, $frame)
+  $g.SetClip($frame)
+  $g.FillEllipse((New-Object System.Drawing.SolidBrush $bands[2]), $left + $inner - 120, $imgY + 28, 54, 54)
+  $far = [System.Drawing.PointF[]]@(
+    (New-Object System.Drawing.PointF $left, ($imgY + $imgH)),
+    (New-Object System.Drawing.PointF ($left + 120), ($imgY + 70)),
+    (New-Object System.Drawing.PointF ($left + 250), ($imgY + $imgH))
+  )
+  $near = [System.Drawing.PointF[]]@(
+    (New-Object System.Drawing.PointF ($left + 140), ($imgY + $imgH)),
+    (New-Object System.Drawing.PointF ($left + 290), ($imgY + 96)),
+    (New-Object System.Drawing.PointF ($left + $inner + 40), ($imgY + $imgH))
+  )
+  $g.FillPolygon((New-Object System.Drawing.SolidBrush ([System.Drawing.Color]::FromArgb(255, 84, 150, 110))), $far)
+  $g.FillPolygon((New-Object System.Drawing.SolidBrush $bands[1]), $near)
+  $g.ResetClip()
+  $sky.Dispose(); $frame.Dispose()
+
+  # Another section, cut short.
+  Fill-Rounded $g $bands[1] $left ($y + 458) $inner 34 10
+  Fill-Bar $g $line $left ($y + 508) ($inner * 0.75) 12
+
+  # Linked from: a rule, a small label and the notes as outlined buttons with a link mark.
+  $g.FillRectangle((New-Object System.Drawing.SolidBrush $rule), $left, $y + 548, $inner, 2)
+  Fill-Bar $g $dim $left ($y + 570) 96 10
+  $pen = New-Object System.Drawing.Pen $dim, 2
+  $bx = $left
+  foreach ($button in @(118, 96, 128)) {
+    if ($bx + $button -gt $left + $inner) { break }
+    $outline = New-RoundedPath $bx ($y + 594) $button 38 10
+    $g.DrawPath($pen, $outline)
+    $outline.Dispose()
+    $g.DrawEllipse($pen, $bx + 12, $y + 607, 10, 10)
+    $g.DrawEllipse($pen, $bx + 19, $y + 607, 10, 10)
+    Fill-Bar $g $light ($bx + 38) ($y + 608) ($button - 52) 10
+    $bx += $button + 12
+  }
+  $pen.Dispose()
+}
+
 # Icon: a purple rounded square with a note sheet in front.
 $canvas = New-Canvas 256 256
 $bitmap = $canvas[0]; $g = $canvas[1]
@@ -96,14 +171,14 @@ function Draw-Cover($g, [int]$extra) {
   $textFont = New-Object System.Drawing.Font('Segoe UI', 28)
   $g.DrawString('Obsidian Notes', $titleFont, $white, 112, 400)
   $g.DrawString("Your Obsidian vault in Orca's sidebar:", $textFont, $muted, 120, 520)
-  $g.DrawString('folder tree, search, callouts and links,', $textFont, $muted, 120, 566)
+  $g.DrawString('images, backlinks, callouts and links,', $textFont, $muted, 120, 566)
   $g.DrawString('with the open note filling the panel.', $textFont, $muted, 120, 612)
 
   Fill-Rounded $g ([System.Drawing.Color]::FromArgb(255, 24, 27, 34)) 960 90 520 820 28
   for ($i = 0; $i -lt 5; $i++) {
     Fill-Rounded $g $line (996 + $i * 52) 122 28 28 7
   }
-  Draw-Note $g 990 182 460 690 2.1
+  Draw-CoverNote $g 990 182
 
   $g.ResetTransform()
   $glow.Dispose(); $iconBrush.Dispose(); $iconPath.Dispose(); $white.Dispose(); $muted.Dispose(); $titleFont.Dispose(); $textFont.Dispose()
