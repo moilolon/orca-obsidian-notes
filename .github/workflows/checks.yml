@@ -1,4 +1,4 @@
-name: checks
+name: Run the checks
 
 # The checks a pull request must pass (Dependabot's too): the types, the tests and the panel
 # rendered once. They run on the Orca CLI of the latest release, the one users update to: its
