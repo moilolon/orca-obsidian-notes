@@ -8,10 +8,10 @@ const NOTES: Record<string, string> = {
   'Notas/Release.md': '# Release\n'
 }
 
-function host(vaults: string[] = [VAULT], notes: Record<string, string> = NOTES) {
+function host(vaults: string[] = [VAULT], notes: Record<string, string> = NOTES, listVaults?: () => { vaults: string[] }) {
   return mockHost({
     requests: {
-      'vaults.list': () => ({ vaults }),
+      'vaults.list': listVaults || (() => ({ vaults })),
       'vaults.add': ({ path }) => ({ vaults: [...vaults, path], added: path }),
       'vaults.pick': () => ({ vaults: [...vaults, 'C:\\picked'], added: 'C:\\picked' }),
       'notes.tree': () => ({
@@ -106,6 +106,64 @@ test('shows the error, not an endless spinner, when the tree cannot be read', as
   assert.ok(view.find({ text: /That folder is not in the vault list/ }), view.summary().join(' | '))
   assert.equal(view.find({ label: 'Reading the vault' }), null)
   assert.equal(view.find({ label: 'No notes' }), null)
+  await view.unmount()
+})
+
+/** Waits, on the real clock, until `found` holds or `ms` have passed. */
+async function eventually(view: { settled(): Promise<void> }, found: () => boolean, ms: number): Promise<void> {
+  const end = Date.now() + ms
+  await view.settled()
+  while (!found() && Date.now() < end) {
+    await new Promise((done) => setTimeout(done, 100))
+    await view.settled()
+  }
+}
+
+test('asks for the vault list again when the worker is starting, rather than ask for a vault', async () => {
+  let calls = 0
+  const waking = host([VAULT], NOTES, () => {
+    calls++
+    if (calls === 1) throw hostError('unavailable', 'worker starting')
+    return { vaults: [VAULT] }
+  })
+  const view = await mount(panel, { host: waking, locale: 'en' })
+  await eventually(view, () => view.find({ label: 'Notes tree' }) !== null, 3000)
+  assert.ok(view.find({ label: 'Notes tree' }), view.summary().join(' | '))
+  assert.equal(view.find({ text: 'Add a vault' }), null)
+  await view.unmount()
+})
+
+test('shows the error while the vault list keeps failing, and loads on its own once it answers', async () => {
+  let failing = true
+  const broken = host([VAULT], NOTES, () => {
+    if (failing) throw hostError('unavailable', 'worker down')
+    return { vaults: [VAULT] }
+  })
+  const view = await mount(panel, { host: broken, locale: 'en' })
+  await eventually(view, () => view.find({ text: 'Try again' }) !== null, 10000)
+  assert.ok(view.find({ text: 'Try again' }), view.summary().join(' | '))
+  assert.equal(view.find({ text: 'Browse…' }), null)
+  failing = false
+  await eventually(view, () => view.find({ label: 'Notes tree' }) !== null, 7000)
+  assert.ok(view.find({ label: 'Notes tree' }), view.summary().join(' | '))
+  assert.equal(view.find({ text: /Something went wrong/ }), null)
+  await view.unmount()
+})
+
+test('the retry button asks for the vault list at once', async () => {
+  let failing = true
+  const broken = host([VAULT], NOTES, () => {
+    if (failing) throw hostError('unavailable', 'worker down')
+    return { vaults: [VAULT] }
+  })
+  const view = await mount(panel, { host: broken, locale: 'en' })
+  await eventually(view, () => view.find({ text: 'Try again' }) !== null, 10000)
+  failing = false
+  const pressed = Date.now()
+  await view.press({ text: 'Try again' })
+  await eventually(view, () => view.find({ label: 'Notes tree' }) !== null, 3000)
+  assert.ok(view.find({ label: 'Notes tree' }), view.summary().join(' | '))
+  assert.ok(Date.now() - pressed < 2000, `took ${Date.now() - pressed} ms`)
   await view.unmount()
 })
 

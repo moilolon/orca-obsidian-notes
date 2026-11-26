@@ -46,6 +46,12 @@ type OpenNote = { path: string; title: string; segments: Segment[]; links: Resol
 
 /** The folder dialog waits for the person: give it the longest wait Orca allows. */
 const PICKER_TIMEOUT_MS = 120000
+/**
+ * The worker stops when idle and starts again on the next request, which can fail while the
+ * computer wakes up: the vault list is asked again after these waits, the last one from then on.
+ * Past them the error shows, and the panel keeps trying until the worker answers.
+ */
+const LIST_RETRY_DELAYS_MS = [500, 2000, 5000]
 /** The add-a-vault block stays this wide on a wide panel, so the field is not a long thin bar. */
 const ADD_VAULT_WIDTH = 420
 
@@ -241,30 +247,74 @@ function toggleView(next: View): void {
   set(view, read(view) === next && read(note) ? 'reading' : next)
 }
 
+/** Ends the wait before the next try at the vault list: the retry button. */
+let tryNow: (() => void) | null = null
+/** Aborted when the panel closes, so its tries stop with it. */
+let panelSignal: AbortSignal | null = null
+
+function waitBeforeRetry(ms: number): Promise<void> {
+  return new Promise((done) => {
+    const timer = setTimeout(done, ms)
+    tryNow = () => {
+      clearTimeout(timer)
+      done()
+    }
+  })
+}
+
+/**
+ * The vault list, asked again until the worker answers, so a worker starting up is never "no
+ * vaults". Null when the panel closed first.
+ */
+async function listVaults(): Promise<string[] | null> {
+  for (let attempt = 0; !panelSignal?.aborted; attempt++) {
+    try {
+      const { vaults: list } = await plugin.request('vaults.list')
+      set(problem, '')
+      return list
+    } catch (error) {
+      if (attempt >= LIST_RETRY_DELAYS_MS.length) set(problem, errorText(error))
+      await waitBeforeRetry(LIST_RETRY_DELAYS_MS[Math.min(attempt, LIST_RETRY_DELAYS_MS.length - 1)])
+      tryNow = null
+    }
+  }
+  return null
+}
+
+/**
+ * The vault list, the tree and the note open last time. Until the list arrives the panel shows
+ * no vault page: while it cannot be read, the error and a button to try again at once.
+ */
+async function start(): Promise<void> {
+  const list = await listVaults()
+  if (!list) return
+  set(vaults, list)
+  set(vaultsLoaded, true)
+  if (!list.length) return set(view, 'vaults')
+  if (!list.includes(read(vault))) set(vault, list[0])
+  await loadTree()
+  if (!read(lastNote)) return
+  try {
+    await openNote(read(lastNote))
+  } catch {
+    // Moved or deleted since: start from the tree, with no error for a note nobody asked for.
+    set(lastNote, '')
+  }
+}
+
 /**
  * Runs once before the first render: the vault list, the tree and the note open last time, and
  * from then on the worker's word that the vault changed on disk.
  */
 export function setup(ctx: PanelContext): void {
+  panelSignal = ctx.signal
+  ctx.signal.addEventListener('abort', () => tryNow?.())
   ctx.subscriptions.push(
     plugin.on('notes.changed', ({ vault: changed }) => {
       if (changed === read(vault)) void guarded(followDisk)
     })
   )
-  void guarded(async () => {
-    const answer = await plugin.request('vaults.list').finally(() => set(vaultsLoaded, true))
-    set(vaults, answer.vaults)
-    if (!answer.vaults.length) return set(view, 'vaults')
-    if (!answer.vaults.includes(read(vault))) set(vault, answer.vaults[0])
-    await loadTree()
-    if (!read(lastNote)) return
-    try {
-      await openNote(read(lastNote))
-    } catch {
-      // Moved or deleted since: start from the tree, with no error for a note nobody asked for.
-      set(lastNote, '')
-    }
-  })
+  void guarded(start)
 }
 
 /** Browse first, the pasted path as the alternative: one centered block of a readable width. */
@@ -565,7 +615,15 @@ export default function Panel() {
   // Coming back to the panel reads the vault list again: wait for it rather than flash the
   // add-a-vault page.
   if (!read(vaultsLoaded)) {
-    return read(problem) ? <Callout tone="danger" title={text('errorTitle')}>{read(problem)}</Callout> : <Spinner label={text('readingVault')} />
+    if (!read(problem)) return <Spinner label={text('readingVault')} />
+    return (
+      <Stack gap="sm">
+        <Callout tone="danger" title={text('errorTitle')}>{read(problem)}</Callout>
+        <Row>
+          <Button icon="refresh" variant="outline" onPress={() => tryNow?.()}>{text('retry')}</Button>
+        </Row>
+      </Stack>
+    )
   }
   // Until there is a vault, the only thing to do is add one: no toolbar to distract from it.
   if (list.length === 0) {
