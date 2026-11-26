@@ -70,3 +70,15 @@ test('reopens the last note when the panel opens again', async () => {
   assert.ok(view.find({ text: 'Notas/Release.md' }))
   await view.unmount()
 })
+
+test('lists the vaults with a button to open each and one to remove it', async () => {
+  const other = 'C:\\other'
+  const view = await mount(panel, { host: host([VAULT, other]), locale: 'en' })
+  await view.press({ label: 'Vaults' })
+  assert.deepEqual(view.errors, [])
+  assert.equal(view.find({ label: 'Use vault' }), null)
+  await view.press({ label: 'Use other' })
+  assert.deepEqual(view.errors, [])
+  assert.equal(view.persisted.plugin.vault, other)
+  await view.unmount()
+})
