@@ -3,6 +3,7 @@
   "id": "notes",
   "name": "Obsidian Notes",
   "version": "0.2.4",
+  "license": "MIT",
   "description": "Read the notes of an Obsidian vault in Orca's sidebar: folder tree, search, callouts and [[links]], with the open note filling the panel.",
   "repository": "https://github.com/moilolon/orca-obsidian-notes",
   "author": {
