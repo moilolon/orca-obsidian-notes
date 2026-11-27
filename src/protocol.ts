@@ -34,8 +34,13 @@ declare module 'orca' {
     'notes.tree': { input: { vault: string; refresh?: boolean }; output: { items: TreeItem[]; truncated: boolean; limit: number } }
     /** One note's Markdown. */
     'notes.read': { input: { vault: string; path: string }; output: NoteContent }
-    /** Notes whose name or text contains the query, case-insensitive; `truncated` past the limit. */
+    /**
+     * Notes whose name or text contains the query, case-insensitive; `#tag` finds the notes
+     * with that tag in their `tags` property. `truncated` past the limit.
+     */
     'notes.search': { input: { vault: string; query: string }; output: { results: NoteFile[]; truncated: boolean } }
+    /** Every tag of the vault's notes and how many notes have it, the most used first. */
+    'notes.tags': { input: { vault: string }; output: { tags: { tag: string; count: number }[] } }
     /** The note each link target points to (a `[[wikilink]]` target or a vault path), or null. */
     'notes.resolve': { input: { vault: string; targets: string[] }; output: { paths: (string | null)[] } }
     /** The notes that link to this one. */
@@ -45,6 +50,31 @@ declare module 'orca' {
      * the plugin's `cache/` folder. `src` is null when there is no such image or it is too large.
      */
     'notes.image': { input: { vault: string; target: string }; output: { src: string | null } }
+    /**
+     * A Mermaid flowchart drawn as a PNG file of the plugin, in the colors of Orca's scheme;
+     * `src` is null for another kind of diagram, or with no system font to draw with. `width`
+     * is its size in CSS pixels.
+     */
+    'notes.diagram': { input: { code: string; scheme: 'light' | 'dark' }; output: { src: string | null; width: number } }
+    /**
+     * README badges in a row, drawn as a PNG file of the plugin from their addresses: nothing
+     * is downloaded. `centre` centres each row; `src` is null with no system font.
+     */
+    'notes.badges': { input: { items: { alt: string; url: string }[]; centre?: boolean }; output: { src: string | null; width: number } }
+    /**
+     * The line under a section heading in each color (`#rrggbb`), as a PNG file of the plugin:
+     * the panel gives every section its own color, which Orca's tones cannot.
+     */
+    'notes.rules': { input: { colors: string[] }; output: { srcs: (string | null)[] } }
+    /**
+     * One pixel of each color (`#rrggbb`), as a PNG file of the plugin: the panel stretches it
+     * into the line under a subsection heading, in its section's color.
+     */
+    'notes.swatches': { input: { colors: string[] }; output: { srcs: (string | null)[] } }
+    /** The vault file other than a note each target names (a `[[file]]` target or a vault path), or null. */
+    'notes.resolveFiles': { input: { vault: string; targets: string[] }; output: { paths: (string | null)[] } }
+    /** Opens a vault file other than a note in the system's app for it; a file that could run code is refused. */
+    'notes.openFile': { input: { vault: string; path: string }; output: { opened: boolean } }
     /** Opens the note in Obsidian through an `obsidian://` URL. */
     'notes.openInObsidian': { input: { vault: string; path: string }; output: { opened: boolean } }
   }

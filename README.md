@@ -20,15 +20,17 @@ An Orca plugin that reads the notes of an Obsidian vault in the sidebar, without
 
 | | Feature | What it does |
 |---|---|---|
-| 📖 | **Full-panel reading** | The open note fills the panel; the tree and the search open from the toolbar |
+| 📖 | **Full-panel reading** | The open note fills the panel; the tree and the search are a segment away, with back and forward like a browser |
 | 🧾 | **Orca's Markdown** | Nested lists, links, tables and code |
-| 🪨 | **Speaks Obsidian** | Shows the properties, draws callouts and tasks, hides `%% comments %%` and lists `[[links]]` and links to other notes as buttons that open them |
-| 🖼️ | **Images** | An image on a line of its own (`![[photo.png]]` or `![](photo.png)`) shows in the note |
+| 🪨 | **Speaks Obsidian** | Shows the properties, draws callouts and tasks, hides `%% comments %%`, and turns `[[links]]` to notes and files into buttons that open them, where they are in the text |
+| 🖼️ | **Images and READMEs** | Images show in the note, and a README keeps its centered blocks, its sizes and its badges |
+| 🧩 | **Mermaid flowcharts** | Drawn in the note, in Orca's light or dark colors |
+| 📎 | **Files** | A linked or attached file (`[[hours.json]]`, `attachments`) opens in its app; never one that could run code |
 | 🔗 | **Backlinks** | Under each note, the notes linking to it; a link to a note that does not exist shows, but cannot be pressed |
-| 🎨 | **Sections that stand apart** | Each `##` opens on a band of its own color, and its subheadings take that color |
-| 🗂️ | **Several vaults** | Added with the folder picker or by pasting the path, and switched from the toolbar |
+| 🎨 | **Sections that stand apart** | Each `##` gets a color no other section of the note has, which its subheadings carry too |
+| 🗂️ | **Several vaults** | Added with the folder picker or by pasting the path, and switched from the panel's head |
 | 🔄 | **Up to date** | When a note changes on disk, the tree and the open note follow |
-| 🔎 | **Search** | By name and by content, with the snippet where it matches |
+| 🔎 | **Search** | By name and by content as you type, grouped by folder, or by `#tag` from the vault's tags |
 | ↗️ | **Open in Obsidian** | Opens the note in the app, even when the added folder is a subfolder of the vault |
 | 🌍 | **In Orca's language** | English or Spanish |
 
@@ -42,7 +44,7 @@ An Orca plugin that reads the notes of an Obsidian vault in the sidebar, without
 - **No build step.** Orca loads the `.ts` and `.tsx` files as they are; `node_modules` only
   brings the development types.
 - **Read-only.** It never writes to a vault. It keeps the list of vaults and, in the plugin's
-  `cache/` folder, a copy of the images it shows (up to 200 MB).
+  `cache/` folder, a copy of the images it shows and the pictures it draws (up to 200 MB).
 - **Only the added vaults.** The worker refuses any path that leaves one, symbolic links
   included. It makes no network calls: nothing leaves the machine.
 

@@ -14,17 +14,42 @@ The details below are for Claude.
   catalog lists each version tag (`vX.Y.Z`) on its own; a listed version never changes.
 - `src/protocol.ts`: the contract between panel and worker. The panel cannot import Node
   modules: everything it reads from disk it asks the worker for.
-- `src/panel/`: `panel.tsx` (toolbar, tree, search, vaults and the note), `panel.check.ts` (the
-  scenarios of `orca plugin check`), `markdown.ts` (properties, comments, callouts, links,
-  headings and their colors, tasks, which the panel draws with components because Orca's
-  `Markdown` gives them a bullet, and pieces under 16 KiB) and `i18n.ts` (texts per language and
-  the worker's error codes; a new language is a table with every key of the English one).
+- `src/panel/`: `panel.tsx` (laid out like Orca's own sidebars: a head with back and forward
+  through the views and notes shown, as in a browser, the vault and its actions; a band of segments, as Orca's "Names |
+  Contents", for the tree with its filter, the search and the note; small-capital section
+  heads; the vaults page), `panel.check.ts` (the scenarios of `orca plugin check`), `markdown.ts`
+  (properties, comments, callouts, links, headings and each section's own color, a hue no
+  other section of the note has, drawn as a line under its heading because Orca's tones are
+  only four, tasks, which the panel
+  draws with components because Orca's `Markdown` gives them a bullet, wrapped lines joined
+  because it breaks wherever the file does, README HTML blocks read like the rest of the note
+  with their `align` kept, badge lines, and pieces under 16 KiB) and `i18n.ts` (texts per
+  language and the worker's error codes; a new language is a table with every key of the
+  English one).
 - `src/worker/`: `worker.ts` (reads the vaults, watches them with `fs.watch`, tells the panel
   with `notes.changed` and answers; imports `markdown.ts` for the backlinks; copies the images
   to `cache/` of the installed plugin, because Orca's `Image` only shows the plugin's own files,
-  and it does serve those that appear after installing), `vault.ts` (paths inside the vault,
-  ordering, link resolution, the Obsidian URL) and `folder-picker.ts` (PowerShell on Windows,
-  `osascript` on macOS, `zenity` on Linux).
+  and it does serve those that appear after installing; it writes there only when it must, since
+  in a development folder every write reloads the plugin and a write per view loops; opens the
+  other files a note links to in the system's app, never one that could run code), `vault.ts`
+  (paths inside the vault, ordering, link resolution, the Obsidian URL), `folder-picker.ts`
+  (PowerShell on Windows, `osascript` on macOS, `zenity` on Linux), and the drawings: `mermaid.ts`
+  (flowcharts parsed and laid out in ranks; a wide left-to-right chart goes top to bottom to fit
+  the sidebar; other diagrams stay as code) and `badges.ts` (README badges from their shields.io
+  address, nothing downloaded) make a scene that `raster.ts` draws into a PNG with the system's
+  TrueType fonts read by `font.ts` (color emojis from COLR on Windows).
+- The line under a `###` or `####` heading is as long as its text by layout, not by measuring:
+  the worker cannot know the font Orca is set to. A `Box` in a `Row` is as wide as the heading
+  it holds, and under it a `Box` 3 pixels tall holds an `Image` (`size="full"`, `fit="cover"`,
+  `rounded`) of one pixel of the section's color, which fills the width and is clipped to the
+  height. The heading stays Orca's own text, so it can be copied and follows Orca's font.
+- Orca's `Image`, and the images inside its `Markdown`, show only `.png`, `.jpg`/`.jpeg` and
+  `.webp` files of the plugin, never SVG, and `Markdown` draws every image the full width,
+  whatever its `width`: what needs a size or alignment is a segment the panel draws itself.
+- Orca's `Markdown` opens only `http`, `https` and `mailto` links: a link to a note or a file in
+  it is text that does nothing. So `markdown.ts` turns the paragraphs and lists that have such
+  links into runs, which the panel draws itself: the text as `Text`, each link as a small
+  outline `Button` that opens the note or the file.
 - Each module has its tests next to it (`*.test.ts`, `*.test.tsx`).
 - `assets/draw-images.ps1` (`powershell -NoProfile -File assets/draw-images.ps1`) draws, from
   shapes, `icon.png` (the plugin's and the project's icon in Orca), `cover.png` (also the

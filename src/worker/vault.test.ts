@@ -1,6 +1,6 @@
 import { assert, test } from 'orca/testing'
 import { join } from 'node:path'
-import { compareEntries, isIgnoredChange, isInside, noteTitle, obsidianUrl, resolveAttachment, resolveWikilink, snippetAt, toKey } from './vault'
+import { compareEntries, isIgnoredChange, isInside, isRunnable, noteTitle, obsidianUrl, resolveAttachment, resolveWikilink, snippetAt, toKey } from './vault'
 
 const ROOT = join('C:', 'vault')
 
@@ -70,4 +70,9 @@ test('finds an attachment by path, by the end of its path, then by name', () => 
   assert.equal(resolveAttachment(files, 'img/plan.jpg'), 'Docs/img/plan.jpg')
   assert.equal(resolveAttachment(files, 'PIC.png'), 'Adjuntos/pic.png')
   assert.equal(resolveAttachment(files, 'missing.png'), null)
+})
+
+test('tells the files that would run code from the ones that only open', () => {
+  for (const name of ['setup.exe', 'run.BAT', 'x.ps1', 'link.lnk', 'a.js']) assert.equal(isRunnable(name), true, name)
+  for (const name of ['hours.json', 'plan.pdf', 'sheet.xlsx', 'notes.txt']) assert.equal(isRunnable(name), false, name)
 })
