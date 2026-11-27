@@ -4,15 +4,19 @@
 import { spawn } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import { watch, type FSWatcher } from 'node:fs'
-import { copyFile, mkdir, readdir, readFile, realpath, rename, stat, unlink, utimes } from 'node:fs/promises'
+import { copyFile, mkdir, readdir, readFile, realpath, rename, stat, unlink, utimes, writeFile } from 'node:fs/promises'
 import { extname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import type { TreeItem } from 'orca'
 import type { OrcaWorkerApi } from 'orca/worker'
-import { isImageName, noteLinks } from '../panel/markdown'
+import { isImageName, noteLinks, noteTags } from '../panel/markdown'
+import { badgeOf, badgesScene } from './badges'
+import { measureText, systemFonts } from './font'
+import { flowchartScene, type ColorScheme } from './mermaid'
+import { renderPng, type Scene } from './raster'
 import { pickFolder } from './folder-picker'
 import type { NoteFile } from '../protocol'
-import { compareEntries, isIgnoredChange, isInside, isNote, noteTitle, obsidianUrl, resolveAttachment, resolveWikilink, SKIPPED_FOLDERS, snippetAt, toKey } from './vault'
+import { compareEntries, isIgnoredChange, isInside, isNote, isRunnable, noteTitle, obsidianUrl, resolveAttachment, resolveWikilink, SKIPPED_FOLDERS, snippetAt, toKey } from './vault'
 
 const VAULTS_KEY = 'vaults'
 const MAX_NOTE_BYTES = 1024 * 1024
@@ -25,6 +29,12 @@ const CHANGE_DELAY_MS = 500
 const MAX_IMAGE_BYTES = 10 * 1024 * 1024
 /** Past this size the cache drops the images used longest ago. */
 const MAX_CACHE_BYTES = 200 * 1024 * 1024
+/**
+ * A cached image is marked used again only after this long. Run from a development folder,
+ * Orca reloads the plugin on any write to it: marking the image on every view reloaded the
+ * panel, which asked for the image again, in a loop.
+ */
+const CACHE_TOUCH_AFTER_MS = 24 * 60 * 60 * 1000
 
 /**
  * Orca's `Image` shows only files of the plugin, so the worker copies the vault's images into
@@ -34,7 +44,7 @@ const CACHE_FOLDER = 'cache'
 const PLUGIN_ROOT = fileURLToPath(new URL('../../', import.meta.url))
 export const CACHE_DIR = join(PLUGIN_ROOT, CACHE_FOLDER)
 
-type Index = { items: TreeItem[]; notes: string[]; images: string[]; truncated: boolean }
+type Index = { items: TreeItem[]; notes: string[]; images: string[]; files: string[]; truncated: boolean }
 
 /**
  * What the worker keeps of a vault: its tree, while a watcher tells it when the disk changes.
@@ -81,19 +91,24 @@ async function noteInVault(root: string, path: string): Promise<string> {
   return file
 }
 
-type Walk = { notes: string[]; images: string[]; count: number; truncated: boolean }
+type Walk = { notes: string[]; images: string[]; files: string[]; count: number; truncated: boolean }
 
 /**
  * The folder's tree, folders first, leaving out folders with no notes; stops listing once it
- * holds MAX_TREE_ENTRIES entries. Images stay out of the tree, but the walk remembers them for
- * `![[pic.png]]`.
+ * holds MAX_TREE_ENTRIES entries. Images and other files stay out of the tree, but the walk
+ * remembers them for `![[pic.png]]` and `[[hours.json]]`.
  */
 async function walk(root: string, dir: string, state: Walk): Promise<TreeItem[]> {
   let entries: { name: string; isDir: boolean }[]
   try {
     const all = await readdir(dir, { withFileTypes: true })
     // Links are left out: a linked file or folder could lead out of the vault.
-    for (const d of all) if (d.isFile() && isImageName(d.name)) state.images.push(toKey(root, join(dir, d.name)))
+    for (const d of all) {
+      if (!d.isFile() || isNote(d.name)) continue
+      const key = toKey(root, join(dir, d.name))
+      state.files.push(key)
+      if (isImageName(d.name)) state.images.push(key)
+    }
     entries = all
       .filter((d) => (d.isDirectory() ? !SKIPPED_FOLDERS.has(d.name) && !d.name.startsWith('.') : d.isFile() && isNote(d.name)))
       .map((d) => ({ name: d.name, isDir: d.isDirectory() }))
@@ -124,9 +139,9 @@ async function walk(root: string, dir: string, state: Walk): Promise<TreeItem[]>
 }
 
 async function readIndex(root: string): Promise<Index> {
-  const state: Walk = { notes: [], images: [], count: 0, truncated: false }
+  const state: Walk = { notes: [], images: [], files: [], count: 0, truncated: false }
   const items = await walk(root, root, state)
-  return { items, notes: state.notes, images: state.images, truncated: state.truncated }
+  return { items, notes: state.notes, images: state.images, files: state.files, truncated: state.truncated }
 }
 
 /**
@@ -143,13 +158,13 @@ async function cachedImage(root: string, key: string): Promise<string | null> {
   }
   if (!isInside(await realpath(root), real)) return null
   const { size, mtimeMs } = await stat(real)
-  if (size > MAX_IMAGE_BYTES) return null
+  if (size > MAX_IMAGE_BYTES || !SHOWN_IMAGE.test(real)) return null
   const name = `${createHash('sha1').update(`${real}\n${mtimeMs}\n${size}`).digest('hex').slice(0, 24)}${extname(real).toLowerCase()}`
   const target = join(CACHE_DIR, name)
-  const now = new Date()
   try {
-    // Already copied: mark it used, so the cache keeps it over older ones.
-    await utimes(target, now, now)
+    // Already copied: mark it used, so the cache keeps it over older ones, but at most once a day.
+    const used = (await stat(target)).mtimeMs
+    if (Date.now() - used > CACHE_TOUCH_AFTER_MS) await utimes(target, new Date(), new Date())
   } catch {
     await mkdir(CACHE_DIR, { recursive: true })
     // Copied under a temporary name first: the panel never sees half a file.
@@ -159,6 +174,74 @@ async function cachedImage(root: string, key: string): Promise<string | null> {
     void pruneCache()
   }
   return `${CACHE_FOLDER}/${name}`
+}
+
+/** The formats Orca's Image shows: a GIF, SVG or other image of the vault is named instead. */
+const SHOWN_IMAGE = /\.(png|jpe?g|webp)$/i
+
+/** Bumped when the drawing changes, so the cache draws again what it drew before. */
+const DRAWING_VERSION = 1
+
+/**
+ * A scene as a PNG file of the plugin, `cache/<hash>.png`, named by what it draws: drawn and
+ * written once, so seeing it again writes nothing. `width` is its size in CSS pixels.
+ */
+async function cachedScene(scene: Scene): Promise<{ src: string | null; width: number }> {
+  const fonts = systemFonts()
+  // Shapes alone need no font; text with no font to draw it is not worth a picture.
+  if (!fonts && scene.shapes.some((shape) => shape.kind === 'text')) return { src: null, width: scene.width }
+  const name = `${createHash('sha1').update(`${DRAWING_VERSION}\n${JSON.stringify(scene)}`).digest('hex').slice(0, 24)}.png`
+  const target = join(CACHE_DIR, name)
+  try {
+    const used = (await stat(target)).mtimeMs
+    if (Date.now() - used > CACHE_TOUCH_AFTER_MS) await utimes(target, new Date(), new Date())
+  } catch {
+    await mkdir(CACHE_DIR, { recursive: true })
+    const partial = `${target}.${process.pid}.part`
+    await writeFile(partial, renderPng(scene, fonts))
+    await rename(partial, target)
+    void pruneCache()
+  }
+  return { src: `${CACHE_FOLDER}/${name}`, width: scene.width }
+}
+
+/** The corner of Orca's `md` radius, the one the section band has, in CSS pixels. */
+const BAND_RADIUS = 8
+
+/**
+ * The line that closes a section's band, in the section's own color: the bottom edge of the
+ * band itself, so it follows the band's round corners and sits flush with its sides. Solid at
+ * the left and paler to the right.
+ */
+function ruleScene(color: string): Scene {
+  const width = 400
+  const height = 3
+  // The lowest `height` pixels of a box with round corners: each side follows the corner's arc.
+  const arc = (centre: number, from: number, to: number): { x: number; y: number }[] =>
+    Array.from({ length: 9 }, (_unused, i) => {
+      const angle = from + ((to - from) * i) / 8
+      return { x: centre + BAND_RADIUS * Math.cos(angle), y: height - BAND_RADIUS + BAND_RADIUS * Math.sin(angle) }
+    })
+  // The angle at which the corner's arc crosses the top of the line.
+  const top = Math.asin((BAND_RADIUS - height) / BAND_RADIUS)
+  const points = [...arc(width - BAND_RADIUS, top, Math.PI / 2), ...arc(BAND_RADIUS, Math.PI / 2, Math.PI - top)]
+  return { width, height, shapes: [{ kind: 'polygon', points, fill: color, fade: 0.25 }] }
+}
+
+/**
+ * One pixel of a color: the panel stretches it into the line under a subsection heading. The
+ * line is as long as the heading's text by layout alone, so nothing here measures any text,
+ * which could only be right for one font.
+ */
+function swatchScene(color: string): Scene {
+  return { width: 0.5, height: 0.5, shapes: [{ kind: 'rect', x: 0, y: 0, width: 0.5, height: 0.5, fill: color }] }
+}
+
+/** How wide the system font draws a text: the drawings measure with the font they draw with. */
+function measure(text: string, size: number, bold: boolean = false, spacing: number = 0): number {
+  const fonts = systemFonts()
+  // With no font nothing is drawn; a guess keeps the layout working.
+  return fonts ? measureText(fonts, text, size, bold, spacing) : [...text].length * size * (0.55 + spacing / size)
 }
 
 /** Drops the images used longest ago until the cache is under MAX_CACHE_BYTES. */
@@ -248,11 +331,16 @@ async function readNote(file: string): Promise<string> {
 async function searchVault(root: string, notes: readonly string[], query: string): Promise<{ results: NoteFile[]; truncated: boolean }> {
   const wanted = query.trim().toLowerCase()
   if (!wanted) return { results: [], truncated: false }
+  // `#tag` looks for the notes with that tag, or one nested under it, not for the text.
+  const tag = /^#[^\s#]+$/.test(wanted) ? wanted.slice(1).replace(/\/+$/, '') : ''
   const results: NoteFile[] = []
   for (const key of notes) {
     const name = noteTitle(key)
-    let hit: NoteFile | null = name.toLowerCase().includes(wanted) ? { path: key, name } : null
-    if (!hit) {
+    let hit: NoteFile | null = !tag && name.toLowerCase().includes(wanted) ? { path: key, name } : null
+    if (tag) {
+      const text = await readSmallNote(join(root, key))
+      if (text !== null && noteTags(text).some((has) => has === tag || has.startsWith(`${tag}/`))) hit = { path: key, name }
+    } else if (!hit) {
       const text = await readSmallNote(join(root, key))
       const at = text === null ? -1 : text.toLowerCase().indexOf(wanted)
       if (text !== null && at >= 0) hit = { path: key, name, snippet: snippetAt(text, at, wanted.length) }
@@ -262,6 +350,18 @@ async function searchVault(root: string, notes: readonly string[], query: string
     results.push(hit)
   }
   return { results, truncated: false }
+}
+
+/** The tags of a vault as it was indexed: counted once, until the vault changes and is indexed again. */
+const tagCounts = new WeakMap<Index, Promise<{ tag: string; count: number }[]>>()
+
+async function countTags(root: string, notes: readonly string[]): Promise<{ tag: string; count: number }[]> {
+  const counts = new Map<string, number>()
+  for (const key of notes) {
+    const text = await readSmallNote(join(root, key))
+    if (text !== null) for (const tag of noteTags(text)) counts.set(tag, (counts.get(tag) || 0) + 1)
+  }
+  return [...counts].map(([tag, count]) => ({ tag, count })).sort((a, b) => b.count - a.count || a.tag.localeCompare(b.tag))
 }
 
 /** The link targets a note makes, read once per version of the file. */
@@ -299,6 +399,12 @@ function openUrl(url: string): void {
     process.platform === 'win32'
       ? ['rundll32.exe', ['url.dll,FileProtocolHandler', url]]
       : [process.platform === 'darwin' ? 'open' : 'xdg-open', [url]]
+  spawn(command, args, { detached: true, stdio: 'ignore', windowsHide: true }).unref()
+}
+
+/** Opens a file in the system's app for its type. */
+function openFile(file: string): void {
+  const [command, args] = process.platform === 'win32' ? ['explorer.exe', [file]] : [process.platform === 'darwin' ? 'open' : 'xdg-open', [file]]
   spawn(command, args, { detached: true, stdio: 'ignore', windowsHide: true }).unref()
 }
 
@@ -347,6 +453,16 @@ export default function activate(orca: OrcaWorkerApi): void {
     return searchVault(root, index.notes, query)
   })
 
+  orca.panels.handle('notes.tags', async ({ vault }) => {
+    const { root, index } = await vaultIndex(orca, vault)
+    let counted = tagCounts.get(index)
+    if (!counted) {
+      counted = countTags(root, index.notes)
+      tagCounts.set(index, counted)
+    }
+    return { tags: await counted }
+  })
+
   orca.panels.handle('notes.resolve', async ({ vault, targets }) => {
     const { index } = await vaultIndex(orca, vault)
     return { paths: targets.map((target) => resolveWikilink(index.notes, target)) }
@@ -361,6 +477,43 @@ export default function activate(orca: OrcaWorkerApi): void {
     const { root, index } = await vaultIndex(orca, vault)
     const key = resolveAttachment(index.images, target)
     return { src: key ? await cachedImage(root, key) : null }
+  })
+
+  orca.panels.handle('notes.diagram', async ({ code, scheme }) => {
+    const scene = flowchartScene(code, scheme === 'light' ? 'light' : 'dark', (text, size) => measure(text, size))
+    return scene ? cachedScene(scene) : { src: null, width: 0 }
+  })
+
+  orca.panels.handle('notes.badges', async ({ items, centre }) => cachedScene(badgesScene(items.map((item) => badgeOf(item.alt, item.url)), measure, centre === true)))
+
+  orca.panels.handle('notes.rules', async ({ colors }) => ({
+    srcs: await Promise.all(colors.map(async (color) => (/^#[0-9a-f]{6}$/i.test(color) ? (await cachedScene(ruleScene(color.toLowerCase()))).src : null)))
+  }))
+
+  orca.panels.handle('notes.swatches', async ({ colors }) => ({
+    srcs: await Promise.all(colors.map(async (color) => (/^#[0-9a-f]{6}$/i.test(color) ? (await cachedScene(swatchScene(color.toLowerCase()))).src : null)))
+  }))
+
+  orca.panels.handle('notes.resolveFiles', async ({ vault, targets }) => {
+    const { index } = await vaultIndex(orca, vault)
+    return { paths: targets.map((target) => resolveAttachment(index.files, target)) }
+  })
+
+  orca.panels.handle('notes.openFile', async ({ vault, path }) => {
+    const { root, index } = await vaultIndex(orca, vault)
+    const key = index.files.find((file) => file.toLowerCase() === path.toLowerCase())
+    if (!key) throw invalid('file_missing')
+    if (isRunnable(key)) throw invalid('file_not_openable')
+    const file = resolve(root, key)
+    let real: string
+    try {
+      real = await realpath(file)
+    } catch {
+      throw invalid('file_missing')
+    }
+    if (!isInside(await realpath(root), real)) throw invalid('file_missing')
+    openFile(real)
+    return { opened: true }
   })
 
   orca.panels.handle('notes.openInObsidian', async ({ vault, path }) => {

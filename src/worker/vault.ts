@@ -65,6 +65,13 @@ export function resolveAttachment(files: readonly string[], target: string): str
   )
 }
 
+/** Programs, scripts and shortcuts: opening one would run it, so the panel never opens them. */
+const RUNNABLE = /\.(exe|com|bat|cmd|ps1|psm1|psd1|vbs|vbe|js|jse|mjs|cjs|wsf|wsh|msi|msp|lnk|scr|hta|cpl|jar|reg|url|msc|pif|application|appref-ms|scf|inf|sh|bash|zsh|command|app|desktop|appimage|run|py|pyw|rb|pl)$/i
+
+export function isRunnable(name: string): boolean {
+  return RUNNABLE.test(name)
+}
+
 /**
  * A change the watcher reports that cannot alter the notes or their images: hidden or tool
  * folders, other kinds of file.

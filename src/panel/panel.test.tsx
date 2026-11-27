@@ -8,6 +8,12 @@ const NOTES: Record<string, string> = {
   'Docs/Release.md': '# Release\n'
 }
 
+/** What the panel searched for, in order. */
+const searched: string[] = []
+
+/** What the panel asked the worker to open, in order. */
+const opened: unknown[] = []
+
 function host(vaults: string[] = [VAULT], notes: Record<string, string> = NOTES, listVaults?: () => { vaults: string[] }) {
   return mockHost({
     requests: {
@@ -25,7 +31,10 @@ function host(vaults: string[] = [VAULT], notes: Record<string, string> = NOTES,
       },
       'notes.resolve': ({ targets }) => ({ paths: targets.map((target) => (`Docs/${target}.md` in notes ? `Docs/${target}.md` : null)) }),
       'notes.backlinks': ({ path }) => ({ results: path === 'Docs/Release.md' ? [{ path: 'Docs/TODO.md', name: 'TODO' }] : [] }),
-      'notes.search': () => ({ results: [{ path: 'Docs/Release.md', name: 'Release', snippet: '…Tags and builds…' }], truncated: true }),
+      'notes.search': ({ query }) => (searched.push(query), { results: [{ path: 'Docs/Release.md', name: 'Release', snippet: '…Tags and builds…' }], truncated: true }),
+      'notes.resolveFiles': ({ targets }) => ({ paths: targets.map((target) => (target === 'hours.json' ? 'Docs/hours.json' : null)) }),
+      'notes.openFile': (params) => (opened.push(params), { opened: true }),
+      'notes.tags': () => ({ tags: Array.from({ length: 30 }, (_unused, index) => ({ tag: index === 29 ? 'zeta' : `tag-${String(index).padStart(2, '0')}`, count: 30 - index })) }),
       'notes.openInObsidian': () => ({ opened: true })
     }
   })
@@ -65,12 +74,13 @@ test('opens a note from the tree over the whole panel, with its properties, call
   assert.ok(view.find({ text: '#todo' }), summary)
   assert.equal(view.find({ label: 'Notes tree' }), null)
   // A link to no note is drawn, but cannot be pressed.
-  assert.equal(view.find({ text: 'Missing' })?.disabled, true)
-  await view.press({ text: 'Release' })
+  const missing = view.find({ type: 'ListItem', text: /Missing/ })
+  assert.equal(missing?.disabled, true)
+  await view.press({ type: 'ListItem', text: /^Release/ })
   await view.settled()
   assert.ok(view.find({ type: 'Heading', text: 'Release' }))
   // Release is linked from TODO: its backlink leads back.
-  await view.press({ text: 'TODO' })
+  await view.press({ type: 'ListItem', text: /^TODO/ })
   assert.ok(view.find({ type: 'Heading', text: 'TODO' }))
   assert.deepEqual(view.errors, [])
   assert.deepEqual(view.refusals, [])
@@ -179,9 +189,9 @@ test('follows a change on disk: the open note is read again', async () => {
 
 test('shows where each search hit matched and says when the list is cut', async () => {
   const view = await mount(panel, { host: host(), locale: 'en' })
-  await view.press({ label: 'Search' })
+  await view.press({ type: 'Button', text: 'Search' })
   await view.type({ label: 'Search', type: 'Input' }, 'builds', { submit: true })
-  assert.ok(view.find({ text: '…Tags and builds…' }), view.summary().join(' | '))
+  assert.ok(view.find({ type: 'ListItem', text: /Tags and builds/ }), view.summary().join(' | '))
   assert.ok(view.find({ text: 'Only the first 1 results are shown.' }))
   await view.unmount()
 })
@@ -229,7 +239,7 @@ test('heads the note with its folders, its title once and its tags; other proper
   await view.settled()
   assert.equal(view.findAll({ type: 'Heading', text: 'My list' }).length, 1)
   assert.ok(view.find({ text: '#todo' }) && view.find({ text: '#work' }))
-  assert.ok(view.find({ label: 'Properties (1)' }), view.summary().join(' | '))
+  assert.ok(view.find({ type: 'Button', text: 'Properties (1)' }), view.summary().join(' | '))
   assert.equal(view.find({ text: 'Docs/TODO.md' }), null)
   assert.deepEqual(view.warnings, [])
   assert.deepEqual(view.errors, [])
@@ -237,5 +247,170 @@ test('heads the note with its folders, its title once and its tags; other proper
   await view.press({ text: 'Docs' })
   assert.ok(view.find({ label: 'Notes tree' }), view.summary().join(' | '))
   assert.deepEqual(view.expandedOf({ label: 'Notes tree' }), ['Docs'])
+  await view.unmount()
+})
+
+test('narrows the tree to the notes whose name matches, with their folders open', async () => {
+  const view = await mount(panel, { host: host(), locale: 'en' })
+  await view.type({ label: 'Filter notes', type: 'Input' }, 'rele')
+  assert.deepEqual(view.expandedOf({ label: 'Notes tree' }), ['Docs'])
+  const items = view.find({ label: 'Notes tree' })?.props.items as { children: { key: string }[] }[]
+  assert.deepEqual(items[0].children.map((item) => item.key), ['Docs/Release.md'])
+  await view.type({ label: 'Filter notes', type: 'Input' }, 'nothing like it', { replace: true })
+  assert.ok(view.find({ text: 'No note matches.' }), view.summary().join(' | '))
+  await view.unmount()
+})
+
+test('lists the files a note links to and opens one in its app; a missing one cannot be pressed', async () => {
+  const testHost = host([VAULT], { ...NOTES, 'Docs/Release.md': '# Release\n![[hours.json]] [[gone.pdf]]\n' })
+  const view = await mount(panel, { host: testHost, locale: 'en', persisted: { plugin: { vault: VAULT, lastNote: 'Docs/Release.md' } } })
+  await view.settled()
+  assert.equal(view.find({ type: 'ListItem', text: /gone\.pdf/ })?.disabled, true)
+  await view.press({ type: 'ListItem', text: /^hours\.json/ })
+  assert.deepEqual(opened, [{ vault: VAULT, path: 'Docs/hours.json' }])
+  assert.deepEqual(view.errors, [])
+  await view.unmount()
+})
+
+test('shows a list too long for a row whole: its count in its row of the list, each value a badge under it', async () => {
+  const dates = Array.from({ length: 40 }, (_unused, day) => `2026-10-${String(day + 1).padStart(2, '0')}`)
+  const notes: Record<string, string> = { 'Docs/TODO.md': `---\nstatus: open\ndone:\n${dates.map((date) => `  - ${date}`).join('\n')}\n---\n# List\n` }
+  const view = await mount(panel, { host: host([VAULT], notes), locale: 'en', persisted: { plugin: { vault: VAULT, lastNote: 'Docs/TODO.md' } } })
+  await view.settled()
+  await view.press({ type: 'Button', text: 'Properties (2)' })
+  const items = view.find({ type: 'KeyValue' })?.props.items as { label: string; value: string }[]
+  assert.deepEqual(items, [{ label: 'status', value: 'open' }, { label: 'done', value: '40' }])
+  assert.ok(view.find({ type: 'Badge', text: '2026-10-40' }), view.summary().join(' | '))
+  assert.equal(view.find({ text: /…/ }), null)
+  assert.deepEqual(view.errors, [])
+  assert.deepEqual(view.refusals, [])
+  await view.unmount()
+})
+
+test('draws a property that links to files as rows that open them', async () => {
+  const notes: Record<string, string> = { 'Docs/TODO.md': '---\nstatus: open\nattachments: "[[hours.json]]"\n---\n# List\n' }
+  const view = await mount(panel, { host: host([VAULT], notes), locale: 'en', persisted: { plugin: { vault: VAULT, lastNote: 'Docs/TODO.md' } } })
+  await view.settled()
+  await view.press({ type: 'Button', text: 'Properties (2)' })
+  const items = view.find({ type: 'KeyValue' })?.props.items as { label: string; value: string }[]
+  assert.deepEqual(items, [{ label: 'status', value: 'open' }, { label: 'attachments', value: '1' }])
+  opened.length = 0
+  await view.press({ type: 'ListItem', text: /^hours\.json/ })
+  assert.deepEqual(opened, [{ vault: VAULT, path: 'Docs/hours.json' }])
+  assert.deepEqual(view.errors, [])
+  await view.unmount()
+})
+
+test('opens a note from its box inside the text; a link to no note is drawn, but cannot be pressed', async () => {
+  const view = await mount(panel, { host: host(), locale: 'en', persisted: { plugin: { vault: VAULT, lastNote: 'Docs/TODO.md' } } })
+  await view.settled()
+  assert.equal(view.find({ type: 'Button', text: 'Missing' })?.disabled, true)
+  await view.press({ type: 'Button', text: 'Release' })
+  await view.settled()
+  assert.ok(view.find({ type: 'Heading', text: 'Release' }), view.summary().join(' | '))
+  assert.deepEqual(view.errors, [])
+  assert.deepEqual(view.refusals, [])
+  await view.unmount()
+})
+
+test('goes back and forward through the views and the notes opened, like a browser', async () => {
+  const view = await mount(panel, { host: host(), locale: 'en', persisted: { plugin: { vault: VAULT, lastNote: 'Docs/TODO.md' } } })
+  await view.settled()
+  assert.equal(view.find({ type: 'Button', text: '←' })?.disabled, true)
+  await view.press({ type: 'Button', text: 'Release' })
+  await view.settled()
+  await view.press({ type: 'Button', text: 'Search' })
+  assert.ok(view.find({ label: 'Search', type: 'Input' }))
+  assert.deepEqual(view.persisted.plugin.steps, ['note:Docs/TODO.md', 'note:Docs/Release.md', 'search'])
+  // Back from the search to the note before it, then to the first one.
+  await view.press({ type: 'Button', text: '←' })
+  await view.settled()
+  assert.ok(view.find({ type: 'Heading', text: 'Release' }), view.summary().join(' | '))
+  await view.press({ type: 'Button', text: '←' })
+  await view.settled()
+  assert.ok(view.find({ type: 'Heading', text: 'TODO' }), view.summary().join(' | '))
+  assert.equal(view.find({ type: 'Button', text: '←' })?.disabled, true)
+  // Forward twice lands on the search again.
+  await view.press({ type: 'Button', text: '→' })
+  await view.settled()
+  await view.press({ type: 'Button', text: '→' })
+  await view.settled()
+  assert.ok(view.find({ label: 'Search', type: 'Input' }))
+  assert.equal(view.find({ type: 'Button', text: '→' })?.disabled, true)
+  assert.deepEqual(view.errors, [])
+  await view.unmount()
+})
+
+test('searches for the notes that share a tag when the tag is pressed', async () => {
+  const view = await mount(panel, { host: host(), locale: 'en', persisted: { plugin: { vault: VAULT, lastNote: 'Docs/TODO.md' } } })
+  await view.settled()
+  searched.length = 0
+  await view.press({ type: 'Button', text: '#todo' })
+  await view.settled()
+  assert.deepEqual(searched, ['#todo'])
+  assert.ok(view.find({ type: 'ListItem', text: /Tags and builds/ }), view.summary().join(' | '))
+  assert.deepEqual(view.errors, [])
+  await view.unmount()
+})
+
+test('lists the notes read last in the search view, and clears them when asked', async () => {
+  const view = await mount(panel, { host: host(), locale: 'en', persisted: { plugin: { vault: VAULT, lastNote: 'Docs/TODO.md' } } })
+  await view.settled()
+  await view.press({ type: 'Button', text: 'Release' })
+  await view.settled()
+  await view.press({ type: 'Button', text: 'Search' })
+  await view.settled()
+  // The open note is left out: TODO, read before it, is the recent one.
+  assert.ok(view.find({ type: 'ListItem', text: /^TODO/ }), view.summary().join(' | '))
+  assert.equal(view.find({ type: 'ListItem', text: /^Release/ }), null)
+  await view.press({ label: 'Clear the recent notes' })
+  assert.equal(view.find({ type: 'ListItem', text: /^TODO/ }), null)
+  assert.deepEqual(view.persisted.plugin.recent, [])
+  // Back and forward keep their trail.
+  assert.equal(view.find({ type: 'Button', text: '←' })?.disabled, false)
+  assert.deepEqual(view.errors, [])
+  await view.unmount()
+})
+
+test('lists the tags, the most used first or from A to Z under their initials, and only those typed while typing', async () => {
+  const view = await mount(panel, { host: host(), locale: 'en' })
+  await view.press({ type: 'Button', text: 'Search' })
+  await view.settled()
+  assert.ok(view.find({ type: 'Button', text: '#tag-00 · 30' }), view.summary().join(' | '))
+  assert.ok(view.find({ type: 'Button', text: '#zeta · 1' }))
+  assert.equal(view.find({ text: 'Z' }), null)
+  await view.press({ type: 'Button', text: 'A–Z' })
+  assert.ok(view.find({ text: 'Z' }), view.summary().join(' | '))
+  assert.equal(view.persisted.plugin.tagOrder, 'az')
+  // Typing narrows the tags to the ones that hold it, with or without the #.
+  await view.type({ label: 'Search', type: 'Input' }, '#ZET')
+  assert.ok(view.find({ type: 'Button', text: '#zeta · 1' }), view.summary().join(' | '))
+  assert.equal(view.find({ type: 'Button', text: '#tag-00 · 30' }), null)
+  assert.deepEqual(view.errors, [])
+  assert.deepEqual(view.refusals, [])
+  await view.unmount()
+})
+
+test('folds and unfolds the tree while it is filtered, and the folders of the search results', async () => {
+  const view = await mount(panel, { host: host(), locale: 'en' })
+  await view.type({ label: 'Filter notes', type: 'Input' }, 'rele')
+  // What the panel tells the tree to show open.
+  const open = (): unknown => view.find({ label: 'Notes tree' })?.props.expanded
+  assert.deepEqual(open(), ['Docs'])
+  await view.press({ label: 'Collapse all folders' })
+  assert.deepEqual(open(), [])
+  await view.press({ label: 'Expand all folders' })
+  assert.deepEqual(open(), ['Docs'])
+  // The search results fold by folder: one by one, and all at once.
+  await view.press({ type: 'Button', text: 'Search' })
+  await view.type({ label: 'Search', type: 'Input' }, 'builds', { submit: true })
+  assert.ok(view.find({ type: 'ListItem', text: /^Release/ }), view.summary().join(' | '))
+  await view.press({ label: 'Collapse Docs' })
+  assert.equal(view.find({ type: 'ListItem', text: /^Release/ }), null)
+  await view.press({ label: 'Expand all folders' })
+  assert.ok(view.find({ type: 'ListItem', text: /^Release/ }))
+  await view.press({ label: 'Collapse all folders' })
+  assert.equal(view.find({ type: 'ListItem', text: /^Release/ }), null)
+  assert.deepEqual(view.errors, [])
   await view.unmount()
 })
